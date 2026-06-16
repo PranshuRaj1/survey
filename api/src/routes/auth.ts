@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { generateId, hashPassword, signJWT, verifyPassword } from '../lib/crypto'
-import type { AppContext } from '../types'
 import { authMiddleware } from '../middleware/auth'
+import type { AppContext } from '../types'
 
 export const authRoutes = new Hono<AppContext>()
 
@@ -27,9 +27,7 @@ authRoutes.post('/signup', async (c) => {
   const id = generateId()
   const passwordHash = await hashPassword(body.password)
 
-  await c.env.DB.prepare(
-    'INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)',
-  )
+  await c.env.DB.prepare('INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)')
     .bind(id, body.email.toLowerCase().trim(), passwordHash)
     .run()
 

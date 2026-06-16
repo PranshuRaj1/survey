@@ -10,9 +10,7 @@ responseRoutes.get('/:surveyId', async (c) => {
   const userId = c.get('userId')
   const surveyId = c.req.param('surveyId')
 
-  const survey = await c.env.DB.prepare(
-    'SELECT id FROM surveys WHERE id = ? AND owner_id = ?',
-  )
+  const survey = await c.env.DB.prepare('SELECT id FROM surveys WHERE id = ? AND owner_id = ?')
     .bind(surveyId, userId)
     .first()
 
@@ -81,9 +79,7 @@ responseRoutes.get('/:surveyId/analytics', async (c) => {
   const userId = c.get('userId')
   const surveyId = c.req.param('surveyId')
 
-  const survey = await c.env.DB.prepare(
-    'SELECT id FROM surveys WHERE id = ? AND owner_id = ?',
-  )
+  const survey = await c.env.DB.prepare('SELECT id FROM surveys WHERE id = ? AND owner_id = ?')
     .bind(surveyId, userId)
     .first()
 
@@ -121,7 +117,7 @@ responseRoutes.get('/:surveyId/analytics', async (c) => {
       }
 
       if (q.type === 'multiple_choice') {
-        const tally: Record<string, number> = {}
+        const tally: Record<string, number> = Object.create(null)
         for (const v of values) {
           const choices = Array.isArray(v) ? v : [v]
           for (const choice of choices) {

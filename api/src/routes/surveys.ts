@@ -113,9 +113,7 @@ surveyRoutes.post('/', async (c) => {
     .bind(id, userId, slug, title)
     .run()
 
-  const survey = await c.env.DB.prepare('SELECT * FROM surveys WHERE id = ?')
-    .bind(id)
-    .first()
+  const survey = await c.env.DB.prepare('SELECT * FROM surveys WHERE id = ?').bind(id).first()
 
   return c.json({ survey }, 201)
 })
@@ -179,17 +177,13 @@ surveyRoutes.patch('/:id', async (c) => {
     values.push(Math.floor(Date.now() / 1000))
     values.push(id)
 
-    await c.env.DB.prepare(
-      `UPDATE surveys SET ${fields.join(', ')} WHERE id = ?`,
-    )
+    await c.env.DB.prepare(`UPDATE surveys SET ${fields.join(', ')} WHERE id = ?`)
       .bind(...values)
       .run()
   }
 
   if (body.questions !== undefined) {
-    const existingQuestions = await c.env.DB.prepare(
-      'SELECT id FROM questions WHERE survey_id = ?',
-    )
+    const existingQuestions = await c.env.DB.prepare('SELECT id FROM questions WHERE survey_id = ?')
       .bind(id)
       .all<{ id: string }>()
 
@@ -285,7 +279,14 @@ surveyRoutes.patch('/:id', async (c) => {
      FROM questions WHERE survey_id = ? ORDER BY sort_order`,
   )
     .bind(id)
-    .all<{ id: string; type: string; label: string; sort_order: number; required: number; config_json: string }>()
+    .all<{
+      id: string
+      type: string
+      label: string
+      sort_order: number
+      required: number
+      config_json: string
+    }>()
 
   return c.json({
     survey: {
@@ -333,9 +334,7 @@ surveyRoutes.post('/:id/publish', async (c) => {
     return c.json({ error: 'Survey not found' }, 404)
   }
 
-  await c.env.DB.prepare(
-    `UPDATE surveys SET status = 'published', updated_at = ? WHERE id = ?`,
-  )
+  await c.env.DB.prepare(`UPDATE surveys SET status = 'published', updated_at = ? WHERE id = ?`)
     .bind(Math.floor(Date.now() / 1000), id)
     .run()
 
