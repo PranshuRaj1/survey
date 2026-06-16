@@ -1,0 +1,187 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #f9f9f9;
+  --color-surface-dim: #dadada;
+  --color-surface-bright: #f9f9f9;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f3f3;
+  --color-surface-container: #eeeeee;
+  --color-surface-container-high: #e8e8e8;
+  --color-surface-container-highest: #e2e2e2;
+  --color-on-surface: #1b1b1b;
+  --color-on-surface-variant: #424655;
+  --color-inverse-surface: #303030;
+  --color-inverse-on-surface: #f1f1f1;
+  --color-outline: #737687;
+  --color-outline-variant: #c2c6d8;
+  --color-surface-tint: #0055d5;
+  --color-primary: #0052d0;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1f6bfa;
+  --color-on-primary-container: #fefcff;
+  --color-inverse-primary: #b3c5ff;
+  --color-secondary: #705d00;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #fdd400;
+  --color-on-secondary-container: #6f5c00;
+  --color-tertiary: #b9003f;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #e51152;
+  --color-on-tertiary-container: #fffbff;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  --color-primary-fixed: #dae1ff;
+  --color-primary-fixed-dim: #b3c5ff;
+  --color-on-primary-fixed: #001849;
+  --color-on-primary-fixed-variant: #003fa4;
+  --color-secondary-fixed: #ffe170;
+  --color-secondary-fixed-dim: #e9c400;
+  --color-on-secondary-fixed: #221b00;
+  --color-on-secondary-fixed-variant: #544600;
+  --color-tertiary-fixed: #ffd9dc;
+  --color-tertiary-fixed-dim: #ffb2ba;
+  --color-on-tertiary-fixed: #400010;
+  --color-on-tertiary-fixed-variant: #910030;
+  --color-background: #f9f9f9;
+  --color-on-background: #1b1b1b;
+  --color-surface-variant: #e2e2e2;
+
+  --font-display-lg: "Anton", sans-serif;
+  --font-headline-lg: "Anton", sans-serif;
+  --font-headline-md: "Anton", sans-serif;
+  --font-headline-sm: "Anton", sans-serif;
+  --font-headline-lg-mobile: "Anton", sans-serif;
+  --font-body-lg: "Inter", sans-serif;
+  --font-body-md: "Inter", sans-serif;
+  --font-label-lg: "JetBrains Mono", monospace;
+  --font-label-sm: "JetBrains Mono", monospace;
+
+  --spacing-unit: 4px;
+  --spacing-gutter: 24px;
+  --spacing-margin-mobile: 16px;
+  --spacing-margin-desktop: 40px;
+  --spacing-container-max: 1280px;
+}
+
+@utility bg-grid-pattern {
+  background-image: radial-gradient(var(--color-outline-variant) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+@utility bg-grid {
+  background-image: 
+    linear-gradient(to right, rgba(27, 27, 27, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(27, 27, 27, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+@utility pattern-grid {
+  background-image: radial-gradient(var(--color-outline-variant) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+@utility neo-border {
+  border: 3px solid #1b1b1b;
+}
+
+@utility neo-border-sm {
+  border: 2px solid #1b1b1b;
+}
+
+@utility neo-shadow {
+  box-shadow: 4px 4px 0px 0px #1b1b1b;
+}
+
+@utility neo-shadow-sm {
+  box-shadow: 2px 2px 0px 0px #1b1b1b;
+}
+
+@utility neo-hover-sink {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  &:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px 0px #1b1b1b;
+  }
+}
+
+@utility neo-hover-sink-sm {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  &:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 0px 0px 0px 0px #1b1b1b;
+  }
+}
+
+/* Brutalist specific utilities */
+@utility brutal-border {
+  border: 3px solid #1b1b1b;
+}
+@utility brutal-border-bottom {
+  border-bottom: 3px solid #1b1b1b;
+}
+@utility brutal-border-top {
+  border-top: 3px solid #1b1b1b;
+}
+@utility brutal-divider {
+  border-bottom: 1px solid #1b1b1b;
+}
+
+@utility brutal-shadow {
+  box-shadow: 4px 4px 0px 0px #1b1b1b;
+}
+
+@utility brutal-button-hover {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  &:hover, &:active {
+    transform: translate(4px, 4px);
+    box-shadow: none;
+  }
+}
+
+@utility brutal-card-hover {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  &:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px 0px #1b1b1b;
+  }
+}
+
+@utility hard-shadow {
+  box-shadow: 4px 4px 0px 0px #1b1b1b;
+  transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+  &:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px 0px #1b1b1b;
+  }
+  &:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px 0px #1b1b1b;
+  }
+}
+
+/* Status Pills */
+@utility status-completed {
+  background-color: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+  border: 2px solid var(--color-on-background);
+}
+@utility status-partial {
+  background-color: var(--color-primary-fixed);
+  color: var(--color-on-primary-fixed);
+  border: 2px solid var(--color-on-background);
+}
+@utility status-bounced {
+  background-color: var(--color-error-container);
+  color: var(--color-on-error-container);
+  border: 2px solid var(--color-on-background);
+}
+
+/* Custom Checkbox / Radio styling for Neo-Brutalism */
+.neo-radio:checked + div {
+  background-color: var(--color-secondary-container);
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px 0px #1b1b1b;
+}
