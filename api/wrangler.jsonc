@@ -11,7 +11,7 @@
 
   "d1_databases": [
     {
-      "binding": "survey",
+      "binding": "DB",
       "database_name": "survey",
       "database_id": "54ee4740-2229-439b-bf18-3db5efc6d90a"
     }
@@ -19,7 +19,7 @@
 
   "kv_namespaces": [
     {
-      "binding": "SESSIONS",
+      "binding": "KV",
       "id": "0cd9349dfe8d40198f6254f16763e02c"
     }
   ]
