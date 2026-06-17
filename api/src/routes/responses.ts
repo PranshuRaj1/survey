@@ -100,36 +100,56 @@ responseRoutes.get('/:surveyId/analytics', async (c) => {
     .bind(surveyId)
     .all<{ id: string; type: string; label: string; config_json: string }>()
 
-  const analytics = await Promise.all(
-    questions.results.map(async (q) => {
-      const answers = await c.env.DB.prepare(
-        `SELECT value_json FROM response_answers WHERE question_id = ?`,
-      )
-        .bind(q.id)
-        .all<{ value_json: string }>()
+  // Fetch all answers for all questions in this survey in a single query
+  //console.log(`[D1 Query] Fetching all answers for survey: ${surveyId}`)
+  const answers = await c.env.DB.prepare(
+    `SELECT ra.question_id, ra.value_json
+     FROM response_answers ra
+     JOIN questions q ON q.id = ra.question_id
+     WHERE q.survey_id = ?`,
+  )
+    .bind(surveyId)
+    .all<{ question_id: string; value_json: string }>()
 
-      const values = answers.results.map((a) => JSON.parse(a.value_json))
+  // Group answers by question ID in memory
+  const answersMap = new Map<string, any[]>()
+  for (const a of answers.results) {
+    let list = answersMap.get(a.question_id)
+    if (!list) {
+      list = []
+      answersMap.set(a.question_id, list)
+    }
+    try {
+      list.push(JSON.parse(a.value_json))
+    } catch {}
+  }
 
-      if (q.type === 'rating') {
-        const nums = values.filter((v) => typeof v === 'number') as number[]
-        const avg = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0
-        return { question_id: q.id, label: q.label, type: q.type, average: avg, count: nums.length }
-      }
+  // Compute metrics in-memory
+  const analytics = questions.results.map((q) => {
+    const values = answersMap.get(q.id) ?? []
 
-      if (q.type === 'multiple_choice') {
-        const tally: Record<string, number> = Object.create(null)
-        for (const v of values) {
-          const choices = Array.isArray(v) ? v : [v]
-          for (const choice of choices) {
+    if (q.type === 'rating') {
+      const nums = values.filter((v) => typeof v === 'number') as number[]
+      const avg = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0
+      return { question_id: q.id, label: q.label, type: q.type, average: avg, count: nums.length }
+    }
+
+    if (q.type === 'multiple_choice') {
+      const tally: Record<string, number> = Object.create(null)
+      for (const v of values) {
+        if (v === null || v === undefined) continue
+        const choices = Array.isArray(v) ? v : [v]
+        for (const choice of choices) {
+          if (typeof choice === 'string' && choice.trim() !== '') {
             tally[choice] = (tally[choice] ?? 0) + 1
           }
         }
-        return { question_id: q.id, label: q.label, type: q.type, tally, count: values.length }
       }
+      return { question_id: q.id, label: q.label, type: q.type, tally, count: values.length }
+    }
 
-      return { question_id: q.id, label: q.label, type: q.type, count: values.length }
-    }),
-  )
+    return { question_id: q.id, label: q.label, type: q.type, count: values.length }
+  })
 
   return c.json({ total: total?.count ?? 0, questions: analytics })
 })
