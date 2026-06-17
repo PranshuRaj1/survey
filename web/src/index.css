@@ -185,3 +185,14 @@
   transform: translate(2px, 2px);
   box-shadow: 0px 0px 0px 0px #1b1b1b;
 }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+@utility animate-shake {
+  animation: shake 0.25s ease-in-out;
+}
+

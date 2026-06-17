@@ -35,7 +35,8 @@ function PublicSurvey() {
   const [loading, setLoading] = useState(true)
   const [currentIdx, setCurrentIdx] = useState(0)
   const [answers, setAnswers] = useState<Record<string, any>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [validationError, setValidationError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
 
@@ -44,7 +45,7 @@ function PublicSurvey() {
       const res = await apiRequest<{ survey: PublicSurveyDetail }>(`/api/public/survey/${slug}`)
       setSurvey(res.survey)
     } catch (err: any) {
-      setError(err?.message || 'Failed to load survey')
+      setLoadError(err?.message || 'Failed to load survey')
     } finally {
       setLoading(false)
     }
@@ -103,14 +104,14 @@ function PublicSurvey() {
     )
   }
 
-  if (error || !survey || survey.questions.length === 0) {
+  if (loadError || !survey || survey.questions.length === 0) {
     return (
       <div className="bg-background text-on-background min-h-screen flex items-center justify-center p-6 bg-grid-pattern">
         <div className="bg-surface brutal-border brutal-shadow p-8 max-w-md w-full flex flex-col gap-4 text-center">
           <span className="material-symbols-outlined text-4xl text-error">warning</span>
           <h1 className="font-headline-sm text-headline-sm uppercase text-error">LINK_FAILED</h1>
           <p className="font-body-md text-on-surface-variant">
-            {error || 'This survey contains no questions or could not be loaded.'}
+            {loadError || 'This survey contains no questions or could not be loaded.'}
           </p>
           <button onClick={() => window.location.reload()} className="bg-primary text-on-primary font-label-lg uppercase py-3 brutal-border">
             Retry Connection
@@ -135,16 +136,16 @@ function PublicSurvey() {
     if (currentQ.required) {
       const val = answers[currentQ.id]
       if (val === undefined || val === null || val === '') {
-        setError(`Question "${currentQ.label}" is required.`)
+        setValidationError(`Question "${currentQ.label}" is required.`)
         return
       }
     }
-    setError(null)
+    setValidationError(null)
     setCurrentIdx(currentIdx + 1)
   }
 
   const handlePrev = () => {
-    setError(null)
+    setValidationError(null)
     setCurrentIdx(currentIdx - 1)
   }
 
@@ -154,7 +155,7 @@ function PublicSurvey() {
       if (q.required) {
         const val = answers[q.id]
         if (val === undefined || val === null || val === '') {
-          setError(`Required field missing: "${q.label}"`)
+          setValidationError(`Required field missing: "${q.label}"`)
           // Navigate back to the unanswered question
           const qIdx = survey.questions.findIndex((item) => item.id === q.id)
           setCurrentIdx(qIdx)
@@ -163,7 +164,7 @@ function PublicSurvey() {
       }
     }
 
-    setError(null)
+    setValidationError(null)
     setSubmitting(true)
     try {
       const formattedAnswers = Object.entries(answers).map(([qId, val]) => ({
@@ -178,7 +179,7 @@ function PublicSurvey() {
 
       navigate({ to: `/s/${slug}/thank-you` })
     } catch (err: any) {
-      setError(err?.message || 'Submission failed. Please check rate-limits and inputs.')
+      setValidationError(err?.message || 'Submission failed. Please check rate-limits and inputs.')
     } finally {
       setSubmitting(false)
     }
@@ -206,7 +207,14 @@ function PublicSurvey() {
 
       {/* Main Content */}
       <main className="flex-grow flex flex-col items-center justify-center px-margin-mobile md:px-margin-desktop py-12 relative z-10">
-        <div className="w-full max-w-2xl bg-surface-container-lowest neo-border neo-shadow flex flex-col transition-all duration-300">
+        <div 
+          key={currentIdx + '-' + (validationError ? 'error' : 'ok')} 
+          className={`w-full max-w-2xl bg-surface-container-lowest flex flex-col transition-all duration-300 ${
+            validationError 
+              ? 'border-[3px] border-error shadow-[4px_4px_0px_0px_var(--color-error)] animate-shake' 
+              : 'neo-border neo-shadow'
+          }`}
+        >
           {/* Card Header (Terminal Style) */}
           <div className="bg-on-background text-on-primary px-4 py-2 border-b-[3px] border-on-background flex justify-between items-center">
             <span className="font-label-sm text-label-sm uppercase tracking-wider">survey_module_v1.0</span>
@@ -224,10 +232,10 @@ function PublicSurvey() {
 
           {/* Card Body */}
           <div className="p-8 md:p-12 flex flex-col gap-8">
-            {error && (
+            {validationError && (
               <div className="bg-error-container text-on-error-container border-[3px] border-error p-4 font-label-sm text-label-sm uppercase flex items-center gap-2">
                 <span className="material-symbols-outlined text-[18px]">warning</span>
-                <span>{error}</span>
+                <span>{validationError}</span>
               </div>
             )}
 
@@ -251,7 +259,10 @@ function PublicSurvey() {
                   type="text"
                   placeholder="Type your response here..."
                   value={answers[currentQ.id] || ''}
-                  onChange={(e) => setAnswers({ ...answers, [currentQ.id]: e.target.value })}
+                  onChange={(e) => {
+                    setAnswers({ ...answers, [currentQ.id]: e.target.value })
+                    setValidationError(null)
+                  }}
                 />
               )}
 
@@ -260,7 +271,10 @@ function PublicSurvey() {
                   className="w-full bg-surface border-[3px] border-on-background p-3 font-body-md text-sm focus:outline-none focus:bg-primary-fixed-dim/10 focus:border-primary placeholder:text-outline/40 h-32"
                   placeholder="Type detailed response here..."
                   value={answers[currentQ.id] || ''}
-                  onChange={(e) => setAnswers({ ...answers, [currentQ.id]: e.target.value })}
+                  onChange={(e) => {
+                    setAnswers({ ...answers, [currentQ.id]: e.target.value })
+                    setValidationError(null)
+                  }}
                 />
               )}
 
@@ -269,7 +283,10 @@ function PublicSurvey() {
                   className="w-full bg-surface border-[3px] border-on-background p-3 font-label-lg text-label-lg focus:outline-none focus:bg-primary-fixed-dim/10"
                   type="date"
                   value={answers[currentQ.id] || ''}
-                  onChange={(e) => setAnswers({ ...answers, [currentQ.id]: e.target.value })}
+                  onChange={(e) => {
+                    setAnswers({ ...answers, [currentQ.id]: e.target.value })
+                    setValidationError(null)
+                  }}
                 />
               )}
 
@@ -281,7 +298,10 @@ function PublicSurvey() {
                       <button
                         key={val}
                         type="button"
-                        onClick={() => setAnswers({ ...answers, [currentQ.id]: val })}
+                        onClick={() => {
+                          setAnswers({ ...answers, [currentQ.id]: val })
+                          setValidationError(null)
+                        }}
                         className={`w-12 h-12 brutal-border font-headline-sm flex items-center justify-center transition-all ${
                           isSelected ? 'bg-secondary-container translate-x-[2px] translate-y-[2px] shadow-none' : 'bg-surface hover:-translate-y-[2px] shadow-[2px_2px_0px_#1b1b1b]'
                         }`}
@@ -300,7 +320,10 @@ function PublicSurvey() {
                     const isSelected = answers[currentQ.id] === opt
                     const alphabet = String.fromCharCode(65 + optIdx)
                     return (
-                      <label key={optIdx} className="relative cursor-pointer group" onClick={() => setAnswers({ ...answers, [currentQ.id]: opt })}>
+                      <label key={optIdx} className="relative cursor-pointer group" onClick={() => {
+                        setAnswers({ ...answers, [currentQ.id]: opt })
+                        setValidationError(null)
+                      }}>
                         <div className={`w-full p-4 border-2 border-on-background flex items-center justify-between transition-all duration-200 ${
                           isSelected ? 'bg-secondary-container translate-x-[2px] translate-y-[2px] shadow-none' : 'bg-surface shadow-[2px_2px_0px_#1b1b1b] hover:bg-surface-container-low group-hover:-translate-y-[1px]'
                         }`} style={isSelected ? { backgroundColor: survey.brand_color, color: '#ffffff' } : {}}>
