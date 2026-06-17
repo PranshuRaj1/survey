@@ -17,6 +17,7 @@ import { Route as SSlugRouteImport } from './routes/s.$slug'
 import { Route as ResponsesSurveyIdRouteImport } from './routes/responses.$surveyId'
 import { Route as BuilderSurveyIdRouteImport } from './routes/builder.$surveyId'
 import { Route as AnalyticsSurveyIdRouteImport } from './routes/analytics.$surveyId'
+import { Route as SSlugIndexRouteImport } from './routes/s.$slug.index'
 import { Route as SSlugThankYouRouteImport } from './routes/s.$slug.thank-you'
 
 const SignupRoute = SignupRouteImport.update({
@@ -59,6 +60,11 @@ const AnalyticsSurveyIdRoute = AnalyticsSurveyIdRouteImport.update({
   path: '/analytics/$surveyId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SSlugIndexRoute = SSlugIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SSlugRoute,
+} as any)
 const SSlugThankYouRoute = SSlugThankYouRouteImport.update({
   id: '/thank-you',
   path: '/thank-you',
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/responses/$surveyId': typeof ResponsesSurveyIdRoute
   '/s/$slug': typeof SSlugRouteWithChildren
   '/s/$slug/thank-you': typeof SSlugThankYouRoute
+  '/s/$slug/': typeof SSlugIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -84,8 +91,8 @@ export interface FileRoutesByTo {
   '/analytics/$surveyId': typeof AnalyticsSurveyIdRoute
   '/builder/$surveyId': typeof BuilderSurveyIdRoute
   '/responses/$surveyId': typeof ResponsesSurveyIdRoute
-  '/s/$slug': typeof SSlugRouteWithChildren
   '/s/$slug/thank-you': typeof SSlugThankYouRoute
+  '/s/$slug': typeof SSlugIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +105,7 @@ export interface FileRoutesById {
   '/responses/$surveyId': typeof ResponsesSurveyIdRoute
   '/s/$slug': typeof SSlugRouteWithChildren
   '/s/$slug/thank-you': typeof SSlugThankYouRoute
+  '/s/$slug/': typeof SSlugIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +119,7 @@ export interface FileRouteTypes {
     | '/responses/$surveyId'
     | '/s/$slug'
     | '/s/$slug/thank-you'
+    | '/s/$slug/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -120,8 +129,8 @@ export interface FileRouteTypes {
     | '/analytics/$surveyId'
     | '/builder/$surveyId'
     | '/responses/$surveyId'
-    | '/s/$slug'
     | '/s/$slug/thank-you'
+    | '/s/$slug'
   id:
     | '__root__'
     | '/'
@@ -133,6 +142,7 @@ export interface FileRouteTypes {
     | '/responses/$surveyId'
     | '/s/$slug'
     | '/s/$slug/thank-you'
+    | '/s/$slug/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -204,6 +214,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnalyticsSurveyIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/s/$slug/': {
+      id: '/s/$slug/'
+      path: '/'
+      fullPath: '/s/$slug/'
+      preLoaderRoute: typeof SSlugIndexRouteImport
+      parentRoute: typeof SSlugRoute
+    }
     '/s/$slug/thank-you': {
       id: '/s/$slug/thank-you'
       path: '/thank-you'
@@ -216,10 +233,12 @@ declare module '@tanstack/react-router' {
 
 interface SSlugRouteChildren {
   SSlugThankYouRoute: typeof SSlugThankYouRoute
+  SSlugIndexRoute: typeof SSlugIndexRoute
 }
 
 const SSlugRouteChildren: SSlugRouteChildren = {
   SSlugThankYouRoute: SSlugThankYouRoute,
+  SSlugIndexRoute: SSlugIndexRoute,
 }
 
 const SSlugRouteWithChildren = SSlugRoute._addFileChildren(SSlugRouteChildren)

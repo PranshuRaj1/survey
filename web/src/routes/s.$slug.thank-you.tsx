@@ -51,72 +51,67 @@ function ThankYou() {
       <div className="absolute inset-0 pointer-events-none z-0 bg-grid-pattern opacity-40"></div>
 
       {/* Main Content Area */}
-      <main className="flex-grow flex items-center justify-center p-margin-mobile md:p-margin-desktop relative z-10 w-full max-w-container-max mx-auto">
-        {/* Card */}
-        <div className="w-full max-w-2xl bg-surface-container-lowest border-[3px] border-on-background shadow-[8px_8px_0px_0px_rgba(27,27,27,1)] flex flex-col rounded-none">
-          {/* Header */}
-          <div className="bg-on-background px-6 py-3 border-b-[3px] border-on-background flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div 
-                className="w-3 h-3 border-[1px] border-surface-container-lowest animate-pulse"
-                style={{ backgroundColor: brandColor }}
-              ></div>
-              <span className="font-label-sm text-label-sm text-surface-container-lowest uppercase tracking-widest">SYS_STATUS // 200_OK</span>
+      <main className="flex-grow flex flex-col relative w-full">
+        {/* Top Navigation Header */}
+        <header className="w-full top-0 border-b-4 border-on-background bg-background z-50">
+          <div className="flex justify-between items-center h-16 px-margin-mobile md:px-margin-desktop w-full max-w-container-max mx-auto">
+            <div className="font-headline-md text-headline-md uppercase tracking-tighter text-on-background">
+              {survey?.title || 'DECODEGO'}
             </div>
-            <span className="font-label-sm text-label-sm text-surface-variant hidden sm:inline-block">SEQ_ID: <span className="text-secondary-fixed">88X-OMEGA</span></span>
+            <div className="flex items-center gap-4">
+              <span className="material-symbols-outlined text-primary" style={{ color: brandColor }}>help_outline</span>
+            </div>
           </div>
+        </header>
 
-          {/* Body */}
-          <div className="p-8 md:p-16 flex flex-col items-center text-center">
-            <div className="mb-10 relative group cursor-default">
-              {/* Hard Offset Shadow */}
-              <div 
-                className="absolute inset-0 border-[2px] border-on-background translate-x-[6px] translate-y-[6px] transition-transform duration-300 group-hover:translate-x-[2px] group-hover:translate-y-[2px]"
-                style={{ backgroundColor: brandColor }}
-              ></div>
-              {/* Primary Icon Surface */}
-              <div className="w-24 h-24 bg-surface-container-lowest border-[3px] border-on-background flex items-center justify-center relative z-10 transition-transform duration-300 group-hover:-translate-y-1 group-hover:-translate-x-1">
-                <span className="material-symbols-outlined text-[56px] text-primary" style={{ fontVariationSettings: "'FILL' 1", color: brandColor }}>check_circle</span>
+        {/* Confirmation Card Center */}
+        <div className="flex-grow flex items-center justify-center p-margin-mobile md:p-margin-desktop relative">
+          <div className="w-full max-w-2xl relative">
+            <div className="bg-background border-[3px] border-on-background brutal-shadow p-8 md:p-12 relative overflow-hidden">
+              <div className="flex flex-col items-center text-center space-y-6">
+                <div 
+                  className="w-20 h-20 border-2 border-on-background flex items-center justify-center"
+                  style={{ backgroundColor: brandColor, color: '#ffffff' }}
+                >
+                  <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                </div>
+                <div className="space-y-4">
+                  <h1 className="font-headline-lg text-headline-lg uppercase tracking-tight text-on-background">Submission Received</h1>
+                  <p className="font-body-lg text-body-lg max-w-md mx-auto leading-relaxed">
+                    Thank you for your response. Your data has been successfully recorded.
+                  </p>
+                </div>
+                <div className="pt-8 w-full flex flex-col md:flex-row gap-4 justify-center">
+                  <Link 
+                    to="/signup" 
+                    className="text-on-primary border-2 border-on-background px-8 py-4 font-label-lg text-label-lg uppercase tracking-widest brutal-shadow brutal-shadow-active hover:bg-primary transition-colors flex items-center justify-center gap-2"
+                    style={{ backgroundColor: brandColor }}
+                  >
+                    <span>Create Your Own Survey</span>
+                    <span className="material-symbols-outlined">add_circle</span>
+                  </Link>
+                </div>
               </div>
-            </div>
-
-            {/* Typography */}
-            <h1 className="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg uppercase mb-6 text-on-background tracking-tight">
-              TRANSMISSION<br/><span style={{ color: brandColor }}>_COMPLETE</span>
-            </h1>
-            <p className="font-body-lg text-body-lg text-on-surface-variant max-w-md mb-12">
-              Your responses have been successfully encoded and committed to the central data matrix. You may now terminate this session.
-            </p>
-
-            <div className="w-full border-t-[2px] border-dashed border-outline mb-12 relative flex justify-center">
-              <div className="absolute -top-[10px] bg-surface-container-lowest px-4 font-label-sm text-label-sm text-outline-variant tracking-widest uppercase">END OF SEQUENCE</div>
-            </div>
-
-            {/* CTA */}
-            <Link to="/signup" className="group relative w-full sm:w-auto inline-flex items-center justify-center">
-              <div className="absolute inset-0 bg-on-background translate-x-[4px] translate-y-[4px] transition-transform duration-100 group-active:translate-x-0 group-active:translate-y-0"></div>
-              <div 
-                className="relative w-full sm:w-auto text-on-primary border-[3px] border-on-background px-8 py-4 flex items-center justify-center gap-3 transition-transform duration-100 group-active:translate-x-[4px] group-active:translate-y-[4px] font-label-lg text-label-lg uppercase tracking-wide"
-                style={{ backgroundColor: brandColor }}
-              >
-                <span>Create your own survey</span>
-                <span className="material-symbols-outlined text-[20px]">add_box</span>
-              </div>
-            </Link>
-
-            <div className="mt-8 pt-6 border-t-[2px] border-on-background w-full flex justify-center items-center gap-2">
-              <span className="font-label-sm text-label-sm text-on-surface-variant">POWERED BY</span>
-              <span className="font-headline-sm text-headline-sm tracking-tighter text-on-background uppercase mt-1">DECODEGO</span>
             </div>
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="bg-surface-container border-t-2 border-on-background mt-auto shrink-0 py-4">
-        <div className="flex justify-between items-center px-margin-mobile md:px-margin-desktop w-full max-w-container-max mx-auto font-label-sm text-label-sm text-on-surface-variant">
-          <span>DECODEGO Survey Platform</span>
-          <span>© 2024 DECODEGO_LABS. ALL RIGHTS RESERVED.</span>
+      <footer className="w-full border-t-2 border-on-background bg-surface-container mt-auto">
+        <div className="flex flex-col md:flex-row justify-between items-center py-6 px-margin-mobile md:px-margin-desktop w-full max-w-container-max mx-auto">
+          <div className="font-label-lg text-label-lg text-primary flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm" style={{ color: brandColor }}>bolt</span>
+            <span style={{ color: brandColor }}>Powered by DECODEGO</span>
+          </div>
+          <div className="font-label-sm text-label-sm text-on-surface mt-4 md:mt-0 uppercase tracking-tighter">
+            © 2024 DECODEGO LABS. ALL RIGHTS RESERVED.
+          </div>
+          <div className="flex gap-6 mt-4 md:mt-0">
+            <a className="font-label-sm text-label-sm text-on-surface-variant hover:text-tertiary transition-opacity duration-200 uppercase" href="#">Support</a>
+            <a className="font-label-sm text-label-sm text-on-surface-variant hover:text-tertiary transition-opacity duration-200 uppercase" href="#">Terms</a>
+            <a className="font-label-sm text-label-sm text-on-surface-variant hover:text-tertiary transition-opacity duration-200 uppercase" href="#">Privacy</a>
+          </div>
         </div>
       </footer>
     </div>
