@@ -72,16 +72,6 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
 
   const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
 
-  const rateLimitKey = `ratelimit:${ip}`
-  const current = await c.env.KV.get(rateLimitKey)
-  const count = current ? parseInt(current, 10) : 0
-
-  if (count >= 10) {
-    return c.json({ error: 'Too many submissions. Try again later.' }, 429)
-  }
-
-  await c.env.KV.put(rateLimitKey, String(count + 1), { expirationTtl: 60 * 60 })
-
   const survey = await c.env.DB.prepare(
     `SELECT id FROM surveys WHERE slug = ? AND status = 'published'`,
   )
@@ -91,6 +81,16 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
   if (!survey) {
     return c.json({ error: 'Survey not found or not published' }, 404)
   }
+
+  const rateLimitKey = `ratelimit:${survey.id}:${ip}`
+  const current = await c.env.KV.get(rateLimitKey)
+  const count = current ? parseInt(current, 10) : 0
+
+  if (count >= 10) {
+    return c.json({ error: 'Too many submissions. Try again later.' }, 429)
+  }
+
+  await c.env.KV.put(rateLimitKey, String(count + 1), { expirationTtl: 60 * 60 })
 
   let body: { answers: Array<{ question_id: string; value: unknown }> }
   try {
@@ -107,6 +107,7 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
     return c.json({ error: 'answers array is required' }, 400)
   }
 
+  const seenQuestions = new Set<string>()
   for (const a of body.answers) {
     if (!a || typeof a !== 'object') {
       return c.json({ error: 'Each answer in the answers array must be a valid object' }, 400)
@@ -114,6 +115,10 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
     if (typeof a.question_id !== 'string') {
       return c.json({ error: 'question_id must be a string' }, 400)
     }
+    if (seenQuestions.has(a.question_id)) {
+      return c.json({ error: 'Duplicate answer for the same question is not allowed' }, 400)
+    }
+    seenQuestions.add(a.question_id)
   }
 
   const questions = await c.env.DB.prepare(

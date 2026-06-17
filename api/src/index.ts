@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
+import { secureHeaders } from 'hono/secure-headers'
 import type { AppContext } from './types'
 import { authRoutes } from './routes/auth'
 import { surveyRoutes } from './routes/surveys'
@@ -10,6 +11,7 @@ import { publicRoutes } from './routes/public'
 const app = new Hono<AppContext>()
 
 app.use('*', logger())
+app.use('*', secureHeaders())
 
 app.use(
   '*',
