@@ -99,6 +99,10 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
     return c.json({ error: 'Invalid JSON payload' }, 400)
   }
 
+  if (!body || typeof body !== 'object') {
+    return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
+
   if (!body.answers || !Array.isArray(body.answers)) {
     return c.json({ error: 'answers array is required' }, 400)
   }

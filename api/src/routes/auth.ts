@@ -6,7 +6,16 @@ import type { AppContext } from '../types'
 export const authRoutes = new Hono<AppContext>()
 
 authRoutes.post('/signup', async (c) => {
-  const body = await c.req.json<{ email: string; password: string }>()
+  let body: { email?: string; password?: string }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
+
+  if (!body || typeof body !== 'object') {
+    return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
 
   if (!body.email || !body.password) {
     return c.json({ error: 'Email and password are required' }, 400)
@@ -39,7 +48,16 @@ authRoutes.post('/signup', async (c) => {
 })
 
 authRoutes.post('/login', async (c) => {
-  const body = await c.req.json<{ email: string; password: string }>()
+  let body: { email?: string; password?: string }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
+
+  if (!body || typeof body !== 'object') {
+    return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
 
   if (!body.email || !body.password) {
     return c.json({ error: 'Email and password are required' }, 400)

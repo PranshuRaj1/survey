@@ -100,7 +100,16 @@ surveyRoutes.get('/:id', async (c) => {
 
 surveyRoutes.post('/', async (c) => {
   const userId = c.get('userId')
-  const body = await c.req.json<{ title?: string }>()
+  let body: { title?: string }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
+
+  if (!body || typeof body !== 'object') {
+    return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
 
   const title = body.title?.trim() || 'Untitled survey'
   const id = generateId()
@@ -132,7 +141,7 @@ surveyRoutes.patch('/:id', async (c) => {
     return c.json({ error: 'Survey not found' }, 404)
   }
 
-  const body = await c.req.json<{
+  let body: {
     title?: string
     brand_color?: string
     logo_url?: string
@@ -146,7 +155,16 @@ surveyRoutes.patch('/:id', async (c) => {
       required?: boolean
       config?: Record<string, unknown>
     }>
-  }>()
+  }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
+
+  if (!body || typeof body !== 'object') {
+    return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
 
   const fields: string[] = []
   const values: unknown[] = []
