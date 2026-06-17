@@ -341,7 +341,9 @@ surveyRoutes.patch('/:id', async (c) => {
     if (stmts.length > 0) {
       await c.env.DB.batch(stmts)
     }
+  }
 
+  if (fields.length > 0 || body.questions !== undefined) {
     await c.env.KV.delete(`survey:${existing.slug}`)
   }
 
