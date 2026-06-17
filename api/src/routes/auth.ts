@@ -17,6 +17,15 @@ authRoutes.post('/signup', async (c) => {
     return c.json({ error: 'Invalid JSON payload' }, 400)
   }
 
+  if (typeof body.email !== 'string' || typeof body.password !== 'string') {
+    return c.json({ error: 'Email and password must be strings' }, 400)
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(body.email)) {
+    return c.json({ error: 'Invalid email format' }, 400)
+  }
+
   if (!body.email || !body.password) {
     return c.json({ error: 'Email and password are required' }, 400)
   }
@@ -57,6 +66,15 @@ authRoutes.post('/login', async (c) => {
 
   if (!body || typeof body !== 'object') {
     return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
+
+  if (typeof body.email !== 'string' || typeof body.password !== 'string') {
+    return c.json({ error: 'Email and password must be strings' }, 400)
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(body.email)) {
+    return c.json({ error: 'Invalid email format' }, 400)
   }
 
   if (!body.email || !body.password) {

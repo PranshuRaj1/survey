@@ -107,6 +107,15 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
     return c.json({ error: 'answers array is required' }, 400)
   }
 
+  for (const a of body.answers) {
+    if (!a || typeof a !== 'object') {
+      return c.json({ error: 'Each answer in the answers array must be a valid object' }, 400)
+    }
+    if (typeof a.question_id !== 'string') {
+      return c.json({ error: 'question_id must be a string' }, 400)
+    }
+  }
+
   const questions = await c.env.DB.prepare(
     `SELECT id, type, label, required, config_json FROM questions WHERE survey_id = ?`,
   )

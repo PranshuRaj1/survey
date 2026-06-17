@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
 export const Route = createFileRoute('/signup')({
@@ -9,6 +9,7 @@ export const Route = createFileRoute('/signup')({
 function Signup() {
   const { signup, isAuthenticated, isLoading } = useAuth()
   const [email, setEmail] = useState('')
+  const [emailTouched, setEmailTouched] = useState(false)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -16,6 +17,9 @@ function Signup() {
   const [latency, setLatency] = useState<number | null>(null)
   const [networkStatus, setNetworkStatus] = useState('Network_Idle')
   const navigate = useNavigate()
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const isEmailInvalid = emailTouched && email !== '' && !emailRegex.test(email)
 
   useEffect(() => {
     const measurePing = async () => {
@@ -43,7 +47,13 @@ function Signup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    
+
+    if (!emailRegex.test(email)) {
+      setError('Invalid email address format')
+      setEmailTouched(true)
+      return
+    }
+
     if (password.length < 8) {
       setError('Password must be at least 8 characters')
       return
@@ -69,7 +79,10 @@ function Signup() {
     <div className="bg-background text-on-background min-h-screen flex items-center justify-center p-margin-mobile md:p-margin-desktop font-body-md text-body-md selection:bg-secondary-fixed selection:text-on-secondary-fixed bg-grid-pattern flex-grow w-full relative">
       <div className="relative w-full max-w-[440px]">
         {/* Hard Pop Shadow */}
-        <div aria-hidden="true" className="absolute inset-0 bg-on-background translate-x-[6px] translate-y-[6px] border-[3px] border-on-background"></div>
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-on-background translate-x-[6px] translate-y-[6px] border-[3px] border-on-background"
+        ></div>
         {/* Module Canvas */}
         <main className="relative bg-surface border-[3px] border-on-background flex flex-col shadow-none z-10">
           {/* Module Header */}
@@ -87,7 +100,9 @@ function Signup() {
                 DECODEGO
               </h1>
               <p className="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>terminal</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                  terminal
+                </span>
                 Register access keys to start.
               </p>
             </div>
@@ -102,22 +117,43 @@ function Signup() {
             <div className="flex flex-col gap-6">
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
-                  <label className="font-label-sm text-label-sm uppercase flex items-center justify-between" htmlFor="email">
+                  <label
+                    className={`font-label-sm text-label-sm uppercase flex items-center justify-between ${isEmailInvalid ? 'text-error' : ''}`}
+                    htmlFor="email"
+                  >
                     <span>Target_Address</span>
+                    {isEmailInvalid && (
+                      <span className="text-error tracking-tight font-label-sm text-[10px] lowercase animate-shake">
+                        [invalid_format]
+                      </span>
+                    )}
                   </label>
                   <input
-                    className="w-full bg-surface-container-lowest border-[3px] border-on-background p-3 font-label-lg text-label-lg focus:outline-none focus:bg-primary-fixed focus:border-on-background placeholder:text-on-background/30 placeholder:font-label-sm rounded-none transition-colors"
+                    className={`w-full bg-surface-container-lowest border-[3px] p-3 font-label-lg text-label-lg focus:outline-none placeholder:text-on-background/30 placeholder:font-label-sm rounded-none transition-all ${
+                      isEmailInvalid
+                        ? 'border-error bg-error-container/10 focus:bg-error-container/20 focus:border-error shadow-[4px_4px_0px_0px_var(--color-error)]'
+                        : 'border-on-background focus:bg-primary-fixed focus:border-on-background'
+                    }`}
                     id="email"
                     placeholder="user@domain.com"
                     required
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onBlur={() => setEmailTouched(true)}
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      if (emailRegex.test(e.target.value)) {
+                        setEmailTouched(false)
+                      }
+                    }}
                   />
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <label className="font-label-sm text-label-sm uppercase flex items-center justify-between" htmlFor="password">
+                  <label
+                    className="font-label-sm text-label-sm uppercase flex items-center justify-between"
+                    htmlFor="password"
+                  >
                     <span>Secret_Passcode</span>
                   </label>
                   <input
@@ -132,7 +168,10 @@ function Signup() {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <label className="font-label-sm text-label-sm uppercase flex items-center justify-between" htmlFor="confirmPassword">
+                  <label
+                    className="font-label-sm text-label-sm uppercase flex items-center justify-between"
+                    htmlFor="confirmPassword"
+                  >
                     <span>Confirm_Passcode</span>
                   </label>
                   <input
@@ -146,23 +185,40 @@ function Signup() {
                   />
                 </div>
 
-                <button className="relative group cursor-pointer mt-2 w-full" type="submit" disabled={submitting}>
-                  <div aria-hidden="true" className="absolute inset-0 bg-on-background translate-x-[4px] translate-y-[4px] border-[3px] border-on-background transition-transform duration-75 group-active:translate-x-0 group-active:translate-y-0"></div>
+                <button
+                  className="relative group cursor-pointer mt-2 w-full"
+                  type="submit"
+                  disabled={submitting}
+                >
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-0 bg-on-background translate-x-[4px] translate-y-[4px] border-[3px] border-on-background transition-transform duration-75 group-active:translate-x-0 group-active:translate-y-0"
+                  ></div>
                   <div className="relative w-full bg-primary text-on-primary border-[3px] border-on-background py-3 px-4 font-label-lg text-label-lg uppercase flex justify-between items-center transition-transform duration-75 group-active:translate-x-[4px] group-active:translate-y-[4px]">
                     <span>{submitting ? 'Registering...' : 'Register'}</span>
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>arrow_right_alt</span>
+                    <span
+                      className="material-symbols-outlined"
+                      style={{ fontVariationSettings: "'FILL' 1" }}
+                    >
+                      arrow_right_alt
+                    </span>
                   </div>
                 </button>
               </form>
 
               <div className="flex items-center gap-4 py-2">
                 <div className="h-px flex-1 border-t-2 border-dashed border-outline-variant"></div>
-                <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest bg-surface px-2">ALREADY_REGISTERED</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest bg-surface px-2">
+                  ALREADY_REGISTERED
+                </span>
                 <div className="h-px flex-1 border-t-2 border-dashed border-outline-variant"></div>
               </div>
 
               <div className="flex flex-col gap-3">
-                <Link to="/login" className="w-full bg-surface-container-lowest border-[3px] border-on-background py-3 px-4 font-label-lg text-label-lg uppercase flex justify-center items-center gap-3 hover:bg-secondary-fixed hover:text-on-secondary-fixed transition-colors text-center">
+                <Link
+                  to="/login"
+                  className="w-full bg-surface-container-lowest border-[3px] border-on-background py-3 px-4 font-label-lg text-label-lg uppercase flex justify-center items-center gap-3 hover:bg-secondary-fixed hover:text-on-secondary-fixed transition-colors text-center"
+                >
                   <span className="material-symbols-outlined">login</span>
                   <span>Sign In Instead</span>
                 </Link>
@@ -171,10 +227,16 @@ function Signup() {
           </div>
           <div className="bg-surface-container border-t-[3px] border-on-background p-2 px-4 flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <span className={`w-3 h-3 inline-block border border-on-background ${networkStatus === 'Offline' ? 'bg-error' : 'bg-primary animate-pulse'}`}></span>
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">{networkStatus}</span>
+              <span
+                className={`w-3 h-3 inline-block border border-on-background ${networkStatus === 'Offline' ? 'bg-error' : 'bg-primary animate-pulse'}`}
+              ></span>
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+                {networkStatus}
+              </span>
             </div>
-            <span className="font-label-sm text-label-sm text-on-surface-variant">{latency !== null ? `${latency}ms` : '---'}</span>
+            <span className="font-label-sm text-label-sm text-on-surface-variant">
+              {latency !== null ? `${latency}ms` : '---'}
+            </span>
           </div>
         </main>
       </div>

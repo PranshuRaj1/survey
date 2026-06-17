@@ -111,6 +111,10 @@ surveyRoutes.post('/', async (c) => {
     return c.json({ error: 'Invalid JSON payload' }, 400)
   }
 
+  if (body.title !== undefined && typeof body.title !== 'string') {
+    return c.json({ error: 'Title must be a string' }, 400)
+  }
+
   const title = body.title?.trim() || 'Untitled survey'
   const id = generateId()
   const slug = generateSlug(title)
@@ -164,6 +168,62 @@ surveyRoutes.patch('/:id', async (c) => {
 
   if (!body || typeof body !== 'object') {
     return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
+
+  if (body.title !== undefined && typeof body.title !== 'string') {
+    return c.json({ error: 'Title must be a string' }, 400)
+  }
+  if (body.brand_color !== undefined) {
+    if (typeof body.brand_color !== 'string') {
+      return c.json({ error: 'Brand color must be a string' }, 400)
+    }
+    const hexColorRegex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+    if (!hexColorRegex.test(body.brand_color)) {
+      return c.json({ error: 'Brand color must be a valid hex color code (e.g., #ffffff)' }, 400)
+    }
+  }
+  if (body.logo_url !== undefined && body.logo_url !== null && typeof body.logo_url !== 'string') {
+    return c.json({ error: 'Logo URL must be a string' }, 400)
+  }
+  if (body.font_family !== undefined && typeof body.font_family !== 'string') {
+    return c.json({ error: 'Font family must be a string' }, 400)
+  }
+  if (
+    body.status !== undefined &&
+    (typeof body.status !== 'string' || !['draft', 'published'].includes(body.status))
+  ) {
+    return c.json({ error: 'Status must be "draft" or "published"' }, 400)
+  }
+  if (body.questions !== undefined) {
+    if (!Array.isArray(body.questions)) {
+      return c.json({ error: 'Questions must be an array' }, 400)
+    }
+    for (const q of body.questions) {
+      if (!q || typeof q !== 'object') {
+        return c.json({ error: 'Each question must be a valid object' }, 400)
+      }
+      if (q.id !== undefined && typeof q.id !== 'string') {
+        return c.json({ error: 'Question id must be a string' }, 400)
+      }
+      if (
+        typeof q.type !== 'string' ||
+        !['short_text', 'long_text', 'multiple_choice', 'rating', 'date'].includes(q.type)
+      ) {
+        return c.json({ error: `Invalid question type: ${q?.type}` }, 400)
+      }
+      if (typeof q.label !== 'string' || q.label.trim() === '') {
+        return c.json({ error: 'Question label is required and must be a non-empty string' }, 400)
+      }
+      if (q.sort_order !== undefined && typeof q.sort_order !== 'number') {
+        return c.json({ error: 'Question sort_order must be a number' }, 400)
+      }
+      if (q.required !== undefined && typeof q.required !== 'boolean') {
+        return c.json({ error: 'Question required must be a boolean' }, 400)
+      }
+      if (q.config !== undefined && (typeof q.config !== 'object' || q.config === null)) {
+        return c.json({ error: 'Question config must be a valid object' }, 400)
+      }
+    }
   }
 
   const fields: string[] = []
