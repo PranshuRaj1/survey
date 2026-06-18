@@ -447,7 +447,7 @@ function PublicSurvey() {
           <div className="flex flex-col sm:flex-row items-center gap-4">
             <span className="font-label-lg text-label-lg text-primary uppercase">DECODEGO</span>
             <span className="font-label-sm text-label-sm text-on-surface-variant">
-              © 2024 DECODEGO LABS. ALL RIGHTS RESERVED.
+              © 2026 DECODEGO LABS. ALL RIGHTS RESERVED.
             </span>
           </div>
         </div>

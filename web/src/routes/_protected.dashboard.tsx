@@ -315,7 +315,7 @@ function Dashboard() {
       <footer className="bg-on-background w-full brutal-border-top border-on-background flex justify-between items-center px-margin-desktop py-4 text-background z-10 mt-auto">
         <div className="font-label-lg text-label-lg font-bold">DECODEGO</div>
         <div className="font-label-sm text-label-sm text-surface-variant flex gap-4">
-          <span className="hidden md:inline">© 2024 DECODEGO_LABS. ALL RIGHTS RESERVED.</span>
+          <span className="hidden md:inline">© 2026 DECODEGO_LABS. ALL RIGHTS RESERVED.</span>
         </div>
       </footer>
 

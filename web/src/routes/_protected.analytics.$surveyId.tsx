@@ -374,7 +374,7 @@ function Analytics() {
             DECODEGO
           </div>
           <div className="text-background font-label-sm text-label-sm">
-            © 2024 DECODEGO_LABS. ALL RIGHTS RESERVED.
+            © 2026 DECODEGO_LABS. ALL RIGHTS RESERVED.
           </div>
         </div>
       </footer>

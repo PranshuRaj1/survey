@@ -277,7 +277,7 @@ function Responses() {
         <div className="flex justify-between items-center px-margin-desktop py-4 w-full">
           <span className="font-label-lg text-label-lg font-bold">DECODEGO</span>
           <span className="font-label-sm text-label-sm text-surface-variant">
-            © 2024 DECODEGO_LABS. ALL RIGHTS RESERVED.
+            © 2026 DECODEGO_LABS. ALL RIGHTS RESERVED.
           </span>
         </div>
       </footer>

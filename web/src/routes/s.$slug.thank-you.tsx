@@ -108,7 +108,7 @@ function ThankYou() {
             <span style={{ color: brandColor }}>Powered by DECODEGO</span>
           </div>
           <div className="font-label-sm text-label-sm text-on-surface mt-4 md:mt-0 uppercase tracking-tighter">
-            © 2024 DECODEGO LABS. ALL RIGHTS RESERVED.
+            © 2026 DECODEGO LABS. ALL RIGHTS RESERVED.
           </div>
           <div className="flex gap-6 mt-4 md:mt-0">
             <a
