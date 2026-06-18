@@ -13,6 +13,10 @@ interface QuestionAnalytic {
 
 interface AnalyticsData {
   total: number
+  /** Total unique visits tracked via Cloudflare KV (≥ total responses) */
+  visits: number
+  /** Average survey completion duration in seconds, null if no data yet */
+  avgDuration: number | null
   questions: QuestionAnalytic[]
 }
 
@@ -52,35 +56,37 @@ function Analytics() {
   }
 
   // Calculate dynamic stats
-  const getEstTime = (questions: QuestionAnalytic[]) => {
-    let totalSeconds = 0
-    for (const q of questions) {
-      if (q.type === 'long_text') {
-        totalSeconds += 30
-      } else if (q.type === 'short_text' || q.type === 'multiple_choice') {
-        totalSeconds += 15
-      } else {
-        totalSeconds += 10
-      }
-    }
-    if (totalSeconds === 0) return '0s'
-    const mins = Math.floor(totalSeconds / 60)
-    const secs = totalSeconds % 60
-    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
+  // Format a real duration (seconds) into a human-readable string.
+  // Returns 'N/A' when no completion data has been collected yet.
+  const formatDuration = (secs: number | null): string => {
+    if (secs === null || secs === undefined || secs === 0) return 'N/A'
+    const mins = Math.floor(secs / 60)
+    const remainingSecs = Math.round(secs % 60)
+    return mins > 0 ? `${mins}m ${remainingSecs}s` : `${remainingSecs}s`
   }
 
-  const estTime = getEstTime(data.questions)
-  const estTimeSub = data.questions.length > 3 ? 'Detailed survey layout' : 'Quick survey layout'
+  const estTime = formatDuration(data.avgDuration)
+  const estTimeSub =
+    data.avgDuration !== null ? 'Avg. actual completion time' : 'No submissions yet'
 
+  // Real bounce rate: visitors who loaded the survey but never submitted.
+  // Guards against division-by-zero when visits is 0.
+  const visits = data.visits || data.total || 0
   const bounceRate =
-    (surveyId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 15) + 5
+    visits > 0 ? Math.max(0, Math.round(((visits - data.total) / visits) * 100)) : 0
   const bounceRateText = `${bounceRate}%`
   const engagementText =
-    bounceRate < 10
-      ? 'Exceptional engagement'
-      : bounceRate < 15
-        ? 'Excellent engagement'
-        : 'Good engagement'
+    visits === 0
+      ? 'No visits yet'
+      : bounceRate === 0
+        ? 'Perfect completion rate'
+        : bounceRate < 20
+          ? 'Exceptional engagement'
+          : bounceRate < 40
+            ? 'Excellent engagement'
+            : bounceRate < 60
+              ? 'Good engagement'
+              : 'Needs improvement'
 
   const generateChartPoints = () => {
     if (responses.length === 0) return '0,95 100,95'

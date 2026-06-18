@@ -93,6 +93,20 @@ responseRoutes.get('/:surveyId/analytics', async (c) => {
     .bind(surveyId)
     .first<{ count: number }>()
 
+  // Fetch visit count from KV; falls back to total responses if no visits have been tracked yet
+  // (e.g. for surveys that pre-date visit tracking). Capped to prevent impossible negative bounce.
+  const rawVisits = await c.env.KV.get(`visits:${surveyId}`)
+  const totalCount = total?.count ?? 0
+  const visits = Math.max(totalCount, rawVisits ? parseInt(rawVisits, 10) : 0)
+
+  // Query the actual average completion duration (in seconds) from D1
+  const durationRow = await c.env.DB.prepare(
+    'SELECT AVG(completion_duration) as avg_duration FROM responses WHERE survey_id = ? AND completion_duration IS NOT NULL',
+  )
+    .bind(surveyId)
+    .first<{ avg_duration: number | null }>()
+  const avgDuration = durationRow?.avg_duration ?? null
+
   const questions = await c.env.DB.prepare(
     `SELECT id, type, label, config_json
      FROM questions WHERE survey_id = ? ORDER BY sort_order`,
@@ -151,5 +165,5 @@ responseRoutes.get('/:surveyId/analytics', async (c) => {
     return { question_id: q.id, label: q.label, type: q.type, count: values.length }
   })
 
-  return c.json({ total: total?.count ?? 0, questions: analytics })
+  return c.json({ total: totalCount, visits, avgDuration, questions: analytics })
 })

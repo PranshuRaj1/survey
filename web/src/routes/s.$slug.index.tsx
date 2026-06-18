@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../lib/api'
 
 interface Question {
@@ -67,6 +67,10 @@ function PublicSurvey() {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
+
+  // Capture the exact moment the respondent begins the survey.
+  // Using a ref so it never triggers re-renders and cannot drift.
+  const startTimeRef = useRef<number>(Date.now())
 
   // Keyboard navigation
   useEffect(() => {
@@ -160,9 +164,13 @@ function PublicSurvey() {
         value: val,
       }))
 
+      // Compute elapsed seconds from when the survey first loaded.
+      // Math.max(1, ...) avoids sending 0 for near-instant submissions.
+      const duration = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000))
+
       await apiRequest(`/api/public/survey/${survey.slug}/respond`, {
         method: 'POST',
-        body: JSON.stringify({ answers: formattedAnswers }),
+        body: JSON.stringify({ answers: formattedAnswers, duration }),
       })
 
       navigate({ to: `/s/${survey.slug}/thank-you` })

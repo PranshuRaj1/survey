@@ -8,8 +8,19 @@ publicRoutes.get('/survey/:slug', async (c) => {
   const slug = c.req.param('slug')
 
   const cacheKey = `survey:${slug}`
-  const cached = await c.env.KV.get(cacheKey, 'json')
+  const cached = await c.env.KV.get(cacheKey, 'json') as { survey: { id: string } } | null
+
   if (cached) {
+    // Increment visit counter asynchronously — does not block the response
+    c.executionCtx.waitUntil(
+      (async () => {
+        const surveyId = cached.survey.id
+        const visitKey = `visits:${surveyId}`
+        const prev = await c.env.KV.get(visitKey)
+        const next = prev ? parseInt(prev, 10) + 1 : 1
+        await c.env.KV.put(visitKey, String(next))
+      })(),
+    )
     return c.json(cached)
   }
 
@@ -64,6 +75,16 @@ publicRoutes.get('/survey/:slug', async (c) => {
 
   await c.env.KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 60 })
 
+  // Increment visit counter asynchronously — does not block the response
+  c.executionCtx.waitUntil(
+    (async () => {
+      const visitKey = `visits:${survey.id}`
+      const prev = await c.env.KV.get(visitKey)
+      const next = prev ? parseInt(prev, 10) + 1 : 1
+      await c.env.KV.put(visitKey, String(next))
+    })(),
+  )
+
   return c.json(result)
 })
 
@@ -92,7 +113,7 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
 
   await c.env.KV.put(rateLimitKey, String(count + 1), { expirationTtl: 60 * 60 })
 
-  let body: { answers: Array<{ question_id: string; value: unknown }> }
+  let body: { answers: Array<{ question_id: string; value: unknown }>; duration?: unknown }
   try {
     body = await c.req.json()
   } catch {
@@ -106,6 +127,12 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
   if (!body.answers || !Array.isArray(body.answers)) {
     return c.json({ error: 'answers array is required' }, 400)
   }
+
+  // Optional: completion duration in seconds (must be a positive integer if provided)
+  const duration =
+    typeof body.duration === 'number' && Number.isInteger(body.duration) && body.duration > 0
+      ? body.duration
+      : null
 
   const seenQuestions = new Set<string>()
   for (const a of body.answers) {
@@ -194,22 +221,23 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
     }
   }
 
+  // Insert the parent response + all answers atomically in a single D1 batch
+  // so a failure in any answer write rolls back the entire submission.
   const responseId = generateId()
 
-  await c.env.DB.prepare(`INSERT INTO responses (id, survey_id, respondent_ip) VALUES (?, ?, ?)`)
-    .bind(responseId, survey.id, ip)
-    .run()
-
-  const stmts = body.answers.map((a) =>
+  const stmts = [
     c.env.DB.prepare(
-      `INSERT INTO response_answers (id, response_id, question_id, value_json)
-       VALUES (?, ?, ?, ?)`,
-    ).bind(generateId(), responseId, a.question_id, JSON.stringify(a.value)),
-  )
+      `INSERT INTO responses (id, survey_id, respondent_ip, completion_duration) VALUES (?, ?, ?, ?)`,
+    ).bind(responseId, survey.id, ip, duration),
+    ...body.answers.map((a) =>
+      c.env.DB.prepare(
+        `INSERT INTO response_answers (id, response_id, question_id, value_json)
+         VALUES (?, ?, ?, ?)`,
+      ).bind(generateId(), responseId, a.question_id, JSON.stringify(a.value)),
+    ),
+  ]
 
-  if (stmts.length > 0) {
-    await c.env.DB.batch(stmts)
-  }
+  await c.env.DB.batch(stmts)
 
   return c.json({ success: true, responseId }, 201)
 })
