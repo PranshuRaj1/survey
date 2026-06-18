@@ -8,7 +8,7 @@ publicRoutes.get('/survey/:slug', async (c) => {
   const slug = c.req.param('slug')
 
   const cacheKey = `survey:${slug}`
-  const cached = await c.env.KV.get(cacheKey, 'json') as { survey: { id: string } } | null
+  const cached = (await c.env.KV.get(cacheKey, 'json')) as { survey: { id: string } } | null
 
   if (cached) {
     // Increment visit counter asynchronously — does not block the response

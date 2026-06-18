@@ -167,3 +167,125 @@ responseRoutes.get('/:surveyId/analytics', async (c) => {
 
   return c.json({ total: totalCount, visits, avgDuration, questions: analytics })
 })
+
+responseRoutes.get('/:surveyId/export', async (c) => {
+  const userId = c.get('userId')
+  const surveyId = c.req.param('surveyId')
+
+  const survey = await c.env.DB.prepare('SELECT id FROM surveys WHERE id = ? AND owner_id = ?')
+    .bind(surveyId, userId)
+    .first<{ id: string }>()
+
+  if (!survey) {
+    return c.json({ error: 'Survey not found' }, 404)
+  }
+
+  // 1. Fetch active questions currently in the survey
+  const questions = await c.env.DB.prepare(
+    `SELECT id, label, type
+     FROM questions
+     WHERE survey_id = ?
+     ORDER BY sort_order ASC`,
+  )
+    .bind(surveyId)
+    .all<{ id: string; label: string; type: string }>()
+
+  const activeQuestionIds = new Set(questions.results.map((q) => q.id))
+
+  // 2. Fetch all responses (no limit)
+  const responses = await c.env.DB.prepare(
+    `SELECT id, submitted_at
+     FROM responses
+     WHERE survey_id = ?
+     ORDER BY submitted_at DESC`,
+  )
+    .bind(surveyId)
+    .all<{ id: string; submitted_at: number }>()
+
+  // 3. Fetch response answers in a single query (joining responses to filter by survey_id)
+  const answers = await c.env.DB.prepare(
+    `SELECT ra.response_id, ra.question_id, ra.value_json
+     FROM response_answers ra
+     JOIN responses r ON r.id = ra.response_id
+     WHERE r.survey_id = ?`,
+  )
+    .bind(surveyId)
+    .all<{ response_id: string; question_id: string; value_json: string }>()
+
+  // Pivot answers by response_id and question_id in memory (safely dropping missing questions)
+  const answersMap = new Map<string, Map<string, unknown>>()
+  for (const a of answers.results) {
+    if (!activeQuestionIds.has(a.question_id)) {
+      continue
+    }
+    let responseMap = answersMap.get(a.response_id)
+    if (!responseMap) {
+      responseMap = new Map<string, unknown>()
+      answersMap.set(a.response_id, responseMap)
+    }
+    try {
+      responseMap.set(a.question_id, JSON.parse(a.value_json))
+    } catch {
+      // Safe fallback
+    }
+  }
+
+  // CSV formatting helper
+  const formatCsvCell = (val: unknown): string => {
+    if (val === null || val === undefined || val === '') {
+      return ''
+    }
+    let strVal = ''
+    if (Array.isArray(val)) {
+      strVal = val.map((item) => String(item ?? '')).join(', ')
+    } else {
+      strVal = String(val)
+    }
+
+    // CSV Injection Prevention
+    if (/^[=+\-@]/.test(strVal)) {
+      strVal = `'${strVal}`
+    }
+
+    // Wrap in double quotes and escape internal double quotes
+    return `"${strVal.replace(/"/g, '""')}"`
+  }
+
+  // CSV Date formatter (YYYY-MM-DD HH:MM:SS UTC)
+  const formatUtcDate = (unix: number) => {
+    const date = new Date(unix * 1000)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const yyyy = date.getUTCFullYear()
+    const mm = pad(date.getUTCMonth() + 1)
+    const dd = pad(date.getUTCDate())
+    const hh = pad(date.getUTCHours())
+    const min = pad(date.getUTCMinutes())
+    const ss = pad(date.getUTCSeconds())
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss} UTC`
+  }
+
+  // Build CSV content
+  const headers = ['Response ID', 'Submitted At', ...questions.results.map((q) => q.label)]
+  const csvRows = [headers.map((h) => formatCsvCell(h)).join(',')]
+
+  for (const r of responses.results) {
+    const row: string[] = []
+    row.push(formatCsvCell(r.id))
+    row.push(formatCsvCell(formatUtcDate(r.submitted_at)))
+
+    const respAnswers = answersMap.get(r.id)
+    for (const q of questions.results) {
+      const val = respAnswers?.get(q.id)
+      row.push(formatCsvCell(val))
+    }
+    csvRows.push(row.join(','))
+  }
+
+  const csvString = csvRows.join('\n')
+
+  return c.text(csvString, 200, {
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': `attachment; filename="survey_${surveyId}_responses.csv"`,
+    'Cache-Control': 'no-store',
+  })
+})

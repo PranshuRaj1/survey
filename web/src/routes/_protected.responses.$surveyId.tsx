@@ -7,7 +7,7 @@ interface Answer {
   question_id: string
   label: string
   type: string
-  value: any
+  value: unknown
 }
 
 interface ResponseItem {
@@ -54,6 +54,46 @@ function Responses() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'COMPLETED' | 'PARTIAL'>('ALL')
   const [activeResponse, setActiveResponse] = useState<ProcessedResponseItem | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+
+  const handleExportCsv = async () => {
+    setIsExporting(true)
+    try {
+      const response = await fetch(`/api/responses/${surveyId}/export`, {
+        method: 'GET',
+        credentials: 'include',
+      })
+      if (!response.ok) {
+        let errorMsg = 'Failed to export responses'
+        try {
+          const errData = (await response.json()) as { error?: string }
+          if (errData?.error) {
+            errorMsg = errData.error
+          }
+        } catch {
+          try {
+            const errText = await response.text()
+            if (errText) errorMsg = errText
+          } catch {}
+        }
+        throw new Error(errorMsg)
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `survey_${surveyId}_responses.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : 'Error exporting responses')
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   if (!user) {
     return (
@@ -127,21 +167,23 @@ function Responses() {
           <button
             onClick={() => logout()}
             title="Logout"
+            type="button"
             className="p-2 text-on-surface hover:bg-secondary-container transition-colors brutal-border border-transparent hover:border-on-background flex items-center justify-center"
           >
             <span className="material-symbols-outlined">logout</span>
           </button>
-          <div
-            className="w-10 h-10 brutal-border overflow-hidden bg-surface-container-high"
+          <button
+            className="w-10 h-10 brutal-border overflow-hidden bg-surface-container-high cursor-pointer p-0"
             onClick={() => logout()}
             title="Logout"
+            type="button"
           >
             <img
               alt="User profile"
               className="w-full h-full object-cover grayscale cursor-pointer"
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuAcsXqYKmI7YaFI8DstQ3tZ25yD9R2zzfAvBMJJ3E-7_4aSLITbpDv-sgEHy54wqpxJZqxNb7hF7gUsuvFVZAG-dgF0h7nBD_zKjjv7PMPhWZiZp599fPnqWrPfrXMnCdAD_ucpG3AUzn_qh7og2ma5wJcu8LcdjKybXAl9MBhyYbAJvvp29cAHScnr3Ax6I5qaGiTrgiREIOVc0ITWnLrwrM8n34Gyj6A77j8NBuSA3A5blgrhqCT87wOhghYdiLukXuWOGyO3rys"
             />
-          </div>
+          </button>
         </div>
       </nav>
 
@@ -166,6 +208,19 @@ function Responses() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={handleExportCsv}
+              disabled={isExporting}
+              type="button"
+              className="bg-primary text-on-primary hover:bg-primary/90 brutal-border px-4 py-2 font-bold flex items-center gap-2 brutal-button-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-[20px]">
+                {isExporting ? 'sync' : 'download'}
+              </span>
+              <span className="font-label-lg text-label-lg uppercase">
+                {isExporting ? 'EXPORTING...' : 'EXPORT CSV'}
+              </span>
+            </button>
             <div className="bg-secondary-container px-4 py-2 brutal-border font-bold">
               <span className="font-label-lg text-label-lg text-on-secondary-container">
                 TOTAL: {responses.length}
@@ -190,7 +245,7 @@ function Responses() {
             <div className="relative">
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
+                onChange={(e) => setStatusFilter(e.target.value as 'ALL' | 'COMPLETED' | 'PARTIAL')}
                 className="appearance-none bg-background brutal-border font-label-sm text-label-sm uppercase pl-4 pr-10 py-2 focus:ring-0 focus:border-on-background cursor-pointer rounded-none"
               >
                 <option value="ALL">ALL STATUSES</option>
@@ -257,6 +312,7 @@ function Responses() {
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => setActiveResponse(res)}
+                          type="button"
                           className="w-8 h-8 brutal-border bg-background flex items-center justify-center hover:bg-primary hover:text-on-primary transition-colors"
                           title="View Details"
                         >
@@ -290,11 +346,12 @@ function Responses() {
               <div className="flex items-center gap-3">
                 <span className="material-symbols-outlined text-2xl">visibility</span>
                 <h1 className="font-label-lg text-label-lg uppercase tracking-wider">
-                  RESPONSE_DETAILS // #{activeResponse.id.slice(0, 12).toUpperCase()}
+                  RESPONSE_DETAILS {'//'} #{activeResponse.id.slice(0, 12).toUpperCase()}
                 </h1>
               </div>
               <button
                 aria-label="Close details"
+                type="button"
                 className="text-background hover:text-secondary-fixed transition-colors"
                 onClick={() => setActiveResponse(null)}
               >
@@ -362,6 +419,7 @@ function Responses() {
             <footer className="bg-surface-container-low border-t-3 border-on-background p-6 flex justify-end shrink-0">
               <button
                 onClick={() => setActiveResponse(null)}
+                type="button"
                 className="bg-on-background text-background font-label-lg text-label-lg uppercase px-8 py-3 neo-shadow-hover transition-all"
               >
                 Close Details
