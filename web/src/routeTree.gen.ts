@@ -11,14 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SSlugRouteImport } from './routes/s.$slug'
-import { Route as ResponsesSurveyIdRouteImport } from './routes/responses.$surveyId'
-import { Route as BuilderSurveyIdRouteImport } from './routes/builder.$surveyId'
-import { Route as AnalyticsSurveyIdRouteImport } from './routes/analytics.$surveyId'
+import { Route as ProtectedDashboardRouteImport } from './routes/_protected.dashboard'
 import { Route as SSlugIndexRouteImport } from './routes/s.$slug.index'
 import { Route as SSlugThankYouRouteImport } from './routes/s.$slug.thank-you'
+import { Route as ProtectedResponsesSurveyIdRouteImport } from './routes/_protected.responses.$surveyId'
+import { Route as ProtectedBuilderSurveyIdRouteImport } from './routes/_protected.builder.$surveyId'
+import { Route as ProtectedAnalyticsSurveyIdRouteImport } from './routes/_protected.analytics.$surveyId'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -30,9 +31,8 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const ProtectedRoute = ProtectedRouteImport.update({
+  id: '/_protected',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -45,20 +45,10 @@ const SSlugRoute = SSlugRouteImport.update({
   path: '/s/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ResponsesSurveyIdRoute = ResponsesSurveyIdRouteImport.update({
-  id: '/responses/$surveyId',
-  path: '/responses/$surveyId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BuilderSurveyIdRoute = BuilderSurveyIdRouteImport.update({
-  id: '/builder/$surveyId',
-  path: '/builder/$surveyId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AnalyticsSurveyIdRoute = AnalyticsSurveyIdRouteImport.update({
-  id: '/analytics/$surveyId',
-  path: '/analytics/$surveyId',
-  getParentRoute: () => rootRouteImport,
+const ProtectedDashboardRoute = ProtectedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => ProtectedRoute,
 } as any)
 const SSlugIndexRoute = SSlugIndexRouteImport.update({
   id: '/',
@@ -70,40 +60,59 @@ const SSlugThankYouRoute = SSlugThankYouRouteImport.update({
   path: '/thank-you',
   getParentRoute: () => SSlugRoute,
 } as any)
+const ProtectedResponsesSurveyIdRoute =
+  ProtectedResponsesSurveyIdRouteImport.update({
+    id: '/responses/$surveyId',
+    path: '/responses/$surveyId',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedBuilderSurveyIdRoute =
+  ProtectedBuilderSurveyIdRouteImport.update({
+    id: '/builder/$surveyId',
+    path: '/builder/$surveyId',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedAnalyticsSurveyIdRoute =
+  ProtectedAnalyticsSurveyIdRouteImport.update({
+    id: '/analytics/$surveyId',
+    path: '/analytics/$surveyId',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/analytics/$surveyId': typeof AnalyticsSurveyIdRoute
-  '/builder/$surveyId': typeof BuilderSurveyIdRoute
-  '/responses/$surveyId': typeof ResponsesSurveyIdRoute
+  '/dashboard': typeof ProtectedDashboardRoute
   '/s/$slug': typeof SSlugRouteWithChildren
+  '/analytics/$surveyId': typeof ProtectedAnalyticsSurveyIdRoute
+  '/builder/$surveyId': typeof ProtectedBuilderSurveyIdRoute
+  '/responses/$surveyId': typeof ProtectedResponsesSurveyIdRoute
   '/s/$slug/thank-you': typeof SSlugThankYouRoute
   '/s/$slug/': typeof SSlugIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/analytics/$surveyId': typeof AnalyticsSurveyIdRoute
-  '/builder/$surveyId': typeof BuilderSurveyIdRoute
-  '/responses/$surveyId': typeof ResponsesSurveyIdRoute
+  '/dashboard': typeof ProtectedDashboardRoute
+  '/analytics/$surveyId': typeof ProtectedAnalyticsSurveyIdRoute
+  '/builder/$surveyId': typeof ProtectedBuilderSurveyIdRoute
+  '/responses/$surveyId': typeof ProtectedResponsesSurveyIdRoute
   '/s/$slug/thank-you': typeof SSlugThankYouRoute
   '/s/$slug': typeof SSlugIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
+  '/_protected': typeof ProtectedRouteWithChildren
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/analytics/$surveyId': typeof AnalyticsSurveyIdRoute
-  '/builder/$surveyId': typeof BuilderSurveyIdRoute
-  '/responses/$surveyId': typeof ResponsesSurveyIdRoute
+  '/_protected/dashboard': typeof ProtectedDashboardRoute
   '/s/$slug': typeof SSlugRouteWithChildren
+  '/_protected/analytics/$surveyId': typeof ProtectedAnalyticsSurveyIdRoute
+  '/_protected/builder/$surveyId': typeof ProtectedBuilderSurveyIdRoute
+  '/_protected/responses/$surveyId': typeof ProtectedResponsesSurveyIdRoute
   '/s/$slug/thank-you': typeof SSlugThankYouRoute
   '/s/$slug/': typeof SSlugIndexRoute
 }
@@ -111,21 +120,21 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/dashboard'
     | '/login'
     | '/signup'
+    | '/dashboard'
+    | '/s/$slug'
     | '/analytics/$surveyId'
     | '/builder/$surveyId'
     | '/responses/$surveyId'
-    | '/s/$slug'
     | '/s/$slug/thank-you'
     | '/s/$slug/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/dashboard'
     | '/login'
     | '/signup'
+    | '/dashboard'
     | '/analytics/$surveyId'
     | '/builder/$surveyId'
     | '/responses/$surveyId'
@@ -134,25 +143,23 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/dashboard'
+    | '/_protected'
     | '/login'
     | '/signup'
-    | '/analytics/$surveyId'
-    | '/builder/$surveyId'
-    | '/responses/$surveyId'
+    | '/_protected/dashboard'
     | '/s/$slug'
+    | '/_protected/analytics/$surveyId'
+    | '/_protected/builder/$surveyId'
+    | '/_protected/responses/$surveyId'
     | '/s/$slug/thank-you'
     | '/s/$slug/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DashboardRoute: typeof DashboardRoute
+  ProtectedRoute: typeof ProtectedRouteWithChildren
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
-  AnalyticsSurveyIdRoute: typeof AnalyticsSurveyIdRoute
-  BuilderSurveyIdRoute: typeof BuilderSurveyIdRoute
-  ResponsesSurveyIdRoute: typeof ResponsesSurveyIdRoute
   SSlugRoute: typeof SSlugRouteWithChildren
 }
 
@@ -172,11 +179,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
+    '/_protected': {
+      id: '/_protected'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof ProtectedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -193,26 +200,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/responses/$surveyId': {
-      id: '/responses/$surveyId'
-      path: '/responses/$surveyId'
-      fullPath: '/responses/$surveyId'
-      preLoaderRoute: typeof ResponsesSurveyIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/builder/$surveyId': {
-      id: '/builder/$surveyId'
-      path: '/builder/$surveyId'
-      fullPath: '/builder/$surveyId'
-      preLoaderRoute: typeof BuilderSurveyIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/analytics/$surveyId': {
-      id: '/analytics/$surveyId'
-      path: '/analytics/$surveyId'
-      fullPath: '/analytics/$surveyId'
-      preLoaderRoute: typeof AnalyticsSurveyIdRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_protected/dashboard': {
+      id: '/_protected/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof ProtectedDashboardRouteImport
+      parentRoute: typeof ProtectedRoute
     }
     '/s/$slug/': {
       id: '/s/$slug/'
@@ -228,8 +221,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SSlugThankYouRouteImport
       parentRoute: typeof SSlugRoute
     }
+    '/_protected/responses/$surveyId': {
+      id: '/_protected/responses/$surveyId'
+      path: '/responses/$surveyId'
+      fullPath: '/responses/$surveyId'
+      preLoaderRoute: typeof ProtectedResponsesSurveyIdRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/builder/$surveyId': {
+      id: '/_protected/builder/$surveyId'
+      path: '/builder/$surveyId'
+      fullPath: '/builder/$surveyId'
+      preLoaderRoute: typeof ProtectedBuilderSurveyIdRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/analytics/$surveyId': {
+      id: '/_protected/analytics/$surveyId'
+      path: '/analytics/$surveyId'
+      fullPath: '/analytics/$surveyId'
+      preLoaderRoute: typeof ProtectedAnalyticsSurveyIdRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
   }
 }
+
+interface ProtectedRouteChildren {
+  ProtectedDashboardRoute: typeof ProtectedDashboardRoute
+  ProtectedAnalyticsSurveyIdRoute: typeof ProtectedAnalyticsSurveyIdRoute
+  ProtectedBuilderSurveyIdRoute: typeof ProtectedBuilderSurveyIdRoute
+  ProtectedResponsesSurveyIdRoute: typeof ProtectedResponsesSurveyIdRoute
+}
+
+const ProtectedRouteChildren: ProtectedRouteChildren = {
+  ProtectedDashboardRoute: ProtectedDashboardRoute,
+  ProtectedAnalyticsSurveyIdRoute: ProtectedAnalyticsSurveyIdRoute,
+  ProtectedBuilderSurveyIdRoute: ProtectedBuilderSurveyIdRoute,
+  ProtectedResponsesSurveyIdRoute: ProtectedResponsesSurveyIdRoute,
+}
+
+const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(
+  ProtectedRouteChildren,
+)
 
 interface SSlugRouteChildren {
   SSlugThankYouRoute: typeof SSlugThankYouRoute
@@ -245,12 +277,9 @@ const SSlugRouteWithChildren = SSlugRoute._addFileChildren(SSlugRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DashboardRoute: DashboardRoute,
+  ProtectedRoute: ProtectedRouteWithChildren,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
-  AnalyticsSurveyIdRoute: AnalyticsSurveyIdRoute,
-  BuilderSurveyIdRoute: BuilderSurveyIdRoute,
-  ResponsesSurveyIdRoute: ResponsesSurveyIdRoute,
   SSlugRoute: SSlugRouteWithChildren,
 }
 export const routeTree = rootRouteImport

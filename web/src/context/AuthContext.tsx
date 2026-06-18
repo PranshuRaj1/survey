@@ -1,113 +1,129 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { apiRequest } from '../lib/api';
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { apiRequest } from '../lib/api'
 
 interface User {
-  id: string;
-  email: string;
+  id: string
+  email: string
 }
 
 interface AuthContextType {
-  user: User | null;
-  token: string | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  user: User | null
+  isLoading: boolean
+  isAuthenticated: boolean
+  login: (email: string, password: string) => Promise<void>
+  signup: (email: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+  awaitSession: () => Promise<User | null>
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('decodego_token'));
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState<boolean>(true)
+
+  const sessionPromiseRef = React.useRef<Promise<User | null> | null>(null)
+  const resolveSessionRef = React.useRef<((user: User | null) => void) | null>(null)
+
+  if (!sessionPromiseRef.current) {
+    sessionPromiseRef.current = new Promise<User | null>((resolve) => {
+      resolveSessionRef.current = resolve
+    })
+  }
 
   useEffect(() => {
     async function restoreSession() {
-      if (token) {
-        try {
-          const res = await apiRequest<{ user: User }>('/api/auth/me');
-          setUser(res.user);
-        } catch (err) {
-          console.error('Session restoration failed:', err);
-          localStorage.removeItem('decodego_token');
-          setToken(null);
-          setUser(null);
+      let restoredUser: User | null = null
+      try {
+        const res = await apiRequest<{ user: User }>('/api/auth/me')
+        setUser(res.user)
+        restoredUser = res.user
+      } catch (err) {
+        console.error('Session restoration failed:', err)
+        setUser(null)
+      } finally {
+        setIsLoading(false)
+        if (resolveSessionRef.current) {
+          resolveSessionRef.current(restoredUser)
         }
       }
-      setIsLoading(false);
     }
-    restoreSession();
-  }, [token]);
+    restoreSession()
+  }, [])
+
+  const awaitSession = React.useCallback(async () => {
+    if (!isLoading) {
+      return user
+    }
+    return sessionPromiseRef.current!
+  }, [isLoading, user])
 
   const login = async (email: string, password: string) => {
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      const res = await apiRequest<{ token: string; user: User }>('/api/auth/login', {
+      const res = await apiRequest<{ user: User }>('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
-      });
-      localStorage.setItem('decodego_token', res.token);
-      setToken(res.token);
-      setUser(res.user);
+      })
+      sessionPromiseRef.current = Promise.resolve(res.user)
+      setUser(res.user)
+      setIsLoading(false)
     } catch (err) {
-      setIsLoading(false);
-      throw err;
+      setIsLoading(false)
+      throw err
     }
-  };
+  }
 
   const signup = async (email: string, password: string) => {
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      const res = await apiRequest<{ token: string; user: User }>('/api/auth/signup', {
+      const res = await apiRequest<{ user: User }>('/api/auth/signup', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
-      });
-      localStorage.setItem('decodego_token', res.token);
-      setToken(res.token);
-      setUser(res.user);
+      })
+      sessionPromiseRef.current = Promise.resolve(res.user)
+      setUser(res.user)
+      setIsLoading(false)
     } catch (err) {
-      setIsLoading(false);
-      throw err;
+      setIsLoading(false)
+      throw err
     }
-  };
+  }
 
   const logout = async () => {
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      await apiRequest('/api/auth/logout', { method: 'POST' });
+      await apiRequest('/api/auth/logout', { method: 'POST' })
     } catch (err) {
-      console.error('Logout request failed:', err);
+      console.error('Logout request failed:', err)
     } finally {
-      localStorage.removeItem('decodego_token');
-      setToken(null);
-      setUser(null);
-      setIsLoading(false);
+      sessionPromiseRef.current = Promise.resolve(null)
+      setUser(null)
+      setIsLoading(false)
     }
-  };
+  }
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        token,
         isLoading,
         isAuthenticated: !!user,
         login,
         signup,
         logout,
+        awaitSession,
       }}
     >
       {children}
     </AuthContext.Provider>
-  );
-};
+  )
+}
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
+  const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider')
   }
-  return context;
-};
+  return context
+}

@@ -3,10 +3,6 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { apiRequest } from '../lib/api'
 
-export const Route = createFileRoute('/builder/$surveyId')({
-  component: Builder,
-})
-
 interface Question {
   id?: string
   type: 'short_text' | 'long_text' | 'multiple_choice' | 'rating' | 'date'
@@ -33,11 +29,19 @@ interface SurveyDetail {
   questions: Question[]
 }
 
+export const Route = createFileRoute('/_protected/builder/$surveyId')({
+  loader: async ({ params }) => {
+    const res = await apiRequest<{ survey: SurveyDetail }>(`/api/surveys/${params.surveyId}`)
+    return { survey: res.survey }
+  },
+  component: Builder,
+})
+
 function Builder() {
   const { surveyId } = Route.useParams()
-  const { user, logout, isAuthenticated, isLoading } = useAuth()
-  const [survey, setSurvey] = useState<SurveyDetail | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { survey: initialSurvey } = Route.useLoaderData()
+  const { user, logout } = useAuth()
+  const [survey, setSurvey] = useState<SurveyDetail>(initialSurvey)
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<'questions' | 'design' | 'share'>('questions')
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop')
@@ -46,30 +50,10 @@ function Builder() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      navigate({ to: '/login', replace: true })
-    }
-  }, [isAuthenticated, isLoading, navigate])
+    setSurvey(initialSurvey)
+  }, [initialSurvey])
 
-  const fetchSurvey = async () => {
-    try {
-      const res = await apiRequest<{ survey: SurveyDetail }>(`/api/surveys/${surveyId}`)
-      setSurvey(res.survey)
-    } catch (err) {
-      alert('Failed to load survey details')
-      navigate({ to: '/dashboard' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchSurvey()
-    }
-  }, [surveyId, isAuthenticated])
-
-  if (isLoading || loading || !survey) {
+  if (!user) {
     return (
       <div className="flex h-screen items-center justify-center bg-background font-label-lg text-label-lg uppercase">
         Loading Builder Environment...
@@ -124,7 +108,9 @@ function Builder() {
   }
 
   const handleDeleteQuestion = (index: number) => {
-    const questions = survey.questions.filter((_, i) => i !== index).map((q, i) => ({ ...q, sort_order: i }))
+    const questions = survey.questions
+      .filter((_, i) => i !== index)
+      .map((q, i) => ({ ...q, sort_order: i }))
     const updated = { ...survey, questions }
     setSurvey(updated)
     if (previewQIndex >= questions.length && questions.length > 0) {
@@ -182,14 +168,16 @@ function Builder() {
     setTimeout(() => setCopyStatus('idle'), 2000)
   }
 
-  const selectedPreviewQ = survey.questions[previewQIndex] || {
-    id: '',
-    type: 'short_text',
-    label: '',
-    sort_order: 0,
-    required: false,
-    config: {}
-  } as Question
+  const selectedPreviewQ =
+    survey.questions[previewQIndex] ||
+    ({
+      id: '',
+      type: 'short_text',
+      label: '',
+      sort_order: 0,
+      required: false,
+      config: {},
+    } as Question)
 
   return (
     <div className="h-screen flex flex-col font-body-md bg-background text-on-background overflow-hidden">
@@ -197,29 +185,51 @@ function Builder() {
       <header className="w-full border-b-3 border-on-background bg-background text-primary font-label-lg text-label-lg z-20 shrink-0">
         <div className="flex justify-between items-center px-margin-desktop h-16 w-full max-w-container-max mx-auto">
           {/* Brand */}
-          <Link to="/dashboard" className="font-headline-md text-headline-md uppercase tracking-tighter text-on-background hover:text-primary transition-colors flex items-center gap-2">
+          <Link
+            to="/dashboard"
+            className="font-headline-md text-headline-md uppercase tracking-tighter text-on-background hover:text-primary transition-colors flex items-center gap-2"
+          >
             <span className="material-symbols-outlined font-bold">terminal</span>
             DECODEGO
           </Link>
           {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-8">
-            <Link to="/dashboard" className="text-on-surface hover:bg-secondary-container hover:text-on-secondary-container px-3 py-1 border-2 border-transparent transition-colors">
+            <Link
+              to="/dashboard"
+              className="text-on-surface hover:bg-secondary-container hover:text-on-secondary-container px-3 py-1 border-2 border-transparent transition-colors"
+            >
               Dashboard
             </Link>
             <span className="text-primary underline underline-offset-4 decoration-3 px-3 py-1">
               Builder
             </span>
-            <Link to="/responses/$surveyId" params={{ surveyId }} className="text-on-surface hover:bg-secondary-container hover:text-on-secondary-container px-3 py-1 border-2 border-transparent transition-colors">
+            <Link
+              to="/responses/$surveyId"
+              params={{ surveyId }}
+              className="text-on-surface hover:bg-secondary-container hover:text-on-secondary-container px-3 py-1 border-2 border-transparent transition-colors"
+            >
               Responses
             </Link>
           </nav>
           {/* Actions */}
           <div className="flex items-center gap-4">
-            <button onClick={() => saveChanges(survey)} disabled={saving} className="bg-surface text-on-surface border-2 border-on-background px-4 py-2 font-label-lg uppercase neo-brutalist-shadow neo-brutalist-shadow-hover transition-all">
+            <button
+              onClick={() => saveChanges(survey)}
+              disabled={saving}
+              className="bg-surface text-on-surface border-2 border-on-background px-4 py-2 font-label-lg uppercase neo-brutalist-shadow neo-brutalist-shadow-hover transition-all"
+            >
               {saving ? 'Saving...' : 'Save Config'}
             </button>
-            <div className="w-10 h-10 border-2 border-on-background overflow-hidden bg-surface-container-high" onClick={() => logout()} title="Logout">
-              <img alt="User profile" className="w-full h-full object-cover grayscale cursor-pointer" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAcsXqYKmI7YaFI8DstQ3tZ25yD9R2zzfAvBMJJ3E-7_4aSLITbpDv-sgEHy54wqpxJZqxNb7hF7gUsuvFVZAG-dgF0h7nBD_zKjjv7PMPhWZiZp599fPnqWrPfrXMnCdAD_ucpG3AUzn_qh7og2ma5wJcu8LcdjKybXAl9MBhyYbAJvvp29cAHScnr3Ax6I5qaGiTrgiREIOVc0ITWnLrwrM8n34Gyj6A77j8NBuSA3A5blgrhqCT87wOhghYdiLukXuWOGyO3rys" />
+            <div
+              className="w-10 h-10 border-2 border-on-background overflow-hidden bg-surface-container-high"
+              onClick={() => logout()}
+              title="Logout"
+            >
+              <img
+                alt="User profile"
+                className="w-full h-full object-cover grayscale cursor-pointer"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAcsXqYKmI7YaFI8DstQ3tZ25yD9R2zzfAvBMJJ3E-7_4aSLITbpDv-sgEHy54wqpxJZqxNb7hF7gUsuvFVZAG-dgF0h7nBD_zKjjv7PMPhWZiZp599fPnqWrPfrXMnCdAD_ucpG3AUzn_qh7og2ma5wJcu8LcdjKybXAl9MBhyYbAJvvp29cAHScnr3Ax6I5qaGiTrgiREIOVc0ITWnLrwrM8n34Gyj6A77j8NBuSA3A5blgrhqCT87wOhghYdiLukXuWOGyO3rys"
+              />
             </div>
           </div>
         </div>
@@ -231,11 +241,17 @@ function Builder() {
           <div className="px-4 py-4 border-b-2 border-on-background mb-4">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-8 h-8 border-2 border-on-background bg-secondary flex items-center justify-center">
-                <span className="material-symbols-outlined text-on-secondary text-sm">rocket_launch</span>
+                <span className="material-symbols-outlined text-on-secondary text-sm">
+                  rocket_launch
+                </span>
               </div>
               <div className="overflow-hidden">
-                <div className="font-headline-sm text-headline-sm text-on-surface leading-none uppercase truncate">{survey.title}</div>
-                <div className="text-on-surface-variant text-[10px] tracking-widest mt-1 capitalize">{survey.status} Mode</div>
+                <div className="font-headline-sm text-headline-sm text-on-surface leading-none uppercase truncate">
+                  {survey.title}
+                </div>
+                <div className="text-on-surface-variant text-[10px] tracking-widest mt-1 capitalize">
+                  {survey.status} Mode
+                </div>
               </div>
             </div>
           </div>
@@ -244,7 +260,9 @@ function Builder() {
             <button
               onClick={() => setActiveTab('questions')}
               className={`w-full flex items-center gap-3 px-3 py-2 border-2 border-on-background text-left transition-transform ${
-                activeTab === 'questions' ? 'bg-primary text-on-primary -translate-x-[2px] -translate-y-[2px] neo-shadow-sm' : 'text-on-surface-variant hover:bg-secondary-fixed hover:text-on-secondary-fixed'
+                activeTab === 'questions'
+                  ? 'bg-primary text-on-primary -translate-x-[2px] -translate-y-[2px] neo-shadow-sm'
+                  : 'text-on-surface-variant hover:bg-secondary-fixed hover:text-on-secondary-fixed'
               }`}
             >
               <span className="material-symbols-outlined">edit_note</span>
@@ -253,7 +271,9 @@ function Builder() {
             <button
               onClick={() => setActiveTab('design')}
               className={`w-full flex items-center gap-3 px-3 py-2 border-2 border-on-background text-left transition-transform ${
-                activeTab === 'design' ? 'bg-primary text-on-primary -translate-x-[2px] -translate-y-[2px] neo-shadow-sm' : 'text-on-surface-variant hover:bg-secondary-fixed hover:text-on-secondary-fixed'
+                activeTab === 'design'
+                  ? 'bg-primary text-on-primary -translate-x-[2px] -translate-y-[2px] neo-shadow-sm'
+                  : 'text-on-surface-variant hover:bg-secondary-fixed hover:text-on-secondary-fixed'
               }`}
             >
               <span className="material-symbols-outlined">palette</span>
@@ -263,8 +283,11 @@ function Builder() {
               onClick={() => setActiveTab('share')}
               disabled={survey.status !== 'published'}
               className={`w-full flex items-center gap-3 px-3 py-2 border-2 border-on-background text-left transition-transform ${
-                survey.status !== 'published' ? 'opacity-40 cursor-not-allowed' :
-                activeTab === 'share' ? 'bg-primary text-on-primary -translate-x-[2px] -translate-y-[2px] neo-shadow-sm' : 'text-on-surface-variant hover:bg-secondary-fixed hover:text-on-secondary-fixed'
+                survey.status !== 'published'
+                  ? 'opacity-40 cursor-not-allowed'
+                  : activeTab === 'share'
+                    ? 'bg-primary text-on-primary -translate-x-[2px] -translate-y-[2px] neo-shadow-sm'
+                    : 'text-on-surface-variant hover:bg-secondary-fixed hover:text-on-secondary-fixed'
               }`}
             >
               <span className="material-symbols-outlined">ios_share</span>
@@ -282,7 +305,10 @@ function Builder() {
           {/* Bottom CTA */}
           <div className="px-4 mt-auto pb-4">
             {survey.status === 'draft' ? (
-              <button onClick={handlePublish} className="w-full bg-secondary text-on-secondary border-2 border-on-background px-4 py-3 font-label-lg uppercase neo-brutalist-shadow neo-brutalist-shadow-hover transition-all flex justify-center items-center gap-2">
+              <button
+                onClick={handlePublish}
+                className="w-full bg-secondary text-on-secondary border-2 border-on-background px-4 py-3 font-label-lg uppercase neo-brutalist-shadow neo-brutalist-shadow-hover transition-all flex justify-center items-center gap-2"
+              >
                 <span className="material-symbols-outlined">publish</span>
                 Publish Survey
               </button>
@@ -309,7 +335,9 @@ function Builder() {
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
                   {/* Title editing */}
                   <div className="border-3 border-on-background bg-surface-bright p-4">
-                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block mb-1">Survey Title</label>
+                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block mb-1">
+                      Survey Title
+                    </label>
                     <input
                       className="w-full font-headline-sm text-headline-sm text-on-surface border-b-2 border-on-background bg-transparent focus:outline-none focus:bg-primary-fixed-dim/10 focus:border-primary p-2 transition-colors uppercase"
                       type="text"
@@ -319,23 +347,42 @@ function Builder() {
                   </div>
 
                   {survey.questions.map((q, qIndex) => (
-                    <div key={qIndex} className="border-3 border-on-background bg-surface-bright relative group">
+                    <div
+                      key={qIndex}
+                      className="border-3 border-on-background bg-surface-bright relative group"
+                    >
                       <div className="absolute -left-3 top-3 bottom-3 w-1.5 bg-secondary group-hover:bg-primary transition-colors"></div>
                       <div className="flex justify-between items-start p-4 border-b border-dashed border-on-background/30 bg-surface-container-low">
                         <div className="flex items-center gap-3">
                           <div className="flex flex-col gap-1">
-                            <button disabled={qIndex === 0} onClick={() => handleMoveQuestion(qIndex, 'up')} className="text-on-surface hover:text-primary disabled:opacity-30">
-                              <span className="material-symbols-outlined text-[16px]">keyboard_arrow_up</span>
+                            <button
+                              disabled={qIndex === 0}
+                              onClick={() => handleMoveQuestion(qIndex, 'up')}
+                              className="text-on-surface hover:text-primary disabled:opacity-30"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">
+                                keyboard_arrow_up
+                              </span>
                             </button>
-                            <button disabled={qIndex === survey.questions.length - 1} onClick={() => handleMoveQuestion(qIndex, 'down')} className="text-on-surface hover:text-primary disabled:opacity-30">
-                              <span className="material-symbols-outlined text-[16px]">keyboard_arrow_down</span>
+                            <button
+                              disabled={qIndex === survey.questions.length - 1}
+                              onClick={() => handleMoveQuestion(qIndex, 'down')}
+                              className="text-on-surface hover:text-primary disabled:opacity-30"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">
+                                keyboard_arrow_down
+                              </span>
                             </button>
                           </div>
                           <div>
-                            <span className="font-label-sm text-xs bg-primary text-on-primary px-2 py-0.5 border border-on-background">Q{qIndex + 1}</span>
+                            <span className="font-label-sm text-xs bg-primary text-on-primary px-2 py-0.5 border border-on-background">
+                              Q{qIndex + 1}
+                            </span>
                             <select
                               value={q.type}
-                              onChange={(e) => handleUpdateQuestion(qIndex, { type: e.target.value as any })}
+                              onChange={(e) =>
+                                handleUpdateQuestion(qIndex, { type: e.target.value as any })
+                              }
                               className="font-label-sm text-xs bg-surface-container-highest text-on-surface px-2 py-0.5 border border-on-background ml-2 rounded-none focus:outline-none"
                             >
                               <option value="short_text">Short Text</option>
@@ -347,7 +394,11 @@ function Builder() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => handleDeleteQuestion(qIndex)} className="p-1 hover:bg-error-container hover:text-error transition-colors" title="Delete Block">
+                          <button
+                            onClick={() => handleDeleteQuestion(qIndex)}
+                            className="p-1 hover:bg-error-container hover:text-error transition-colors"
+                            title="Delete Block"
+                          >
                             <span className="material-symbols-outlined text-sm">delete</span>
                           </button>
                         </div>
@@ -363,30 +414,49 @@ function Builder() {
                         {/* Config rendering based on type */}
                         {q.type === 'multiple_choice' && (
                           <div className="space-y-2 pl-2 border-l-2 border-dashed border-on-background/30 mt-3">
-                            <label className="font-label-sm text-xs text-on-surface-variant uppercase block">Choices:</label>
+                            <label className="font-label-sm text-xs text-on-surface-variant uppercase block">
+                              Choices:
+                            </label>
                             {(q.config.options || []).map((opt, optIdx) => (
                               <div key={optIdx} className="flex items-center gap-2">
                                 <div className="w-4 h-4 border-2 border-on-background rounded-full bg-surface-container-high"></div>
-                                <span className="flex-1 font-body-md text-sm text-on-surface p-1">{opt}</span>
-                                <button onClick={() => handleRemoveChoiceOption(qIndex, optIdx)} className="p-1 text-on-surface-variant hover:text-error">
-                                  <span className="material-symbols-outlined text-[16px]">close</span>
+                                <span className="flex-1 font-body-md text-sm text-on-surface p-1">
+                                  {opt}
+                                </span>
+                                <button
+                                  onClick={() => handleRemoveChoiceOption(qIndex, optIdx)}
+                                  className="p-1 text-on-surface-variant hover:text-error"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">
+                                    close
+                                  </span>
                                 </button>
                               </div>
                             ))}
                             {/* Input to add option */}
-                            <form onSubmit={(e) => {
-                              e.preventDefault()
-                              const input = (e.target as HTMLFormElement).elements.namedItem('newOpt') as HTMLInputElement
-                              handleAddChoiceOption(qIndex, input.value)
-                              input.value = ''
-                            }} className="flex gap-2">
+                            <form
+                              onSubmit={(e) => {
+                                e.preventDefault()
+                                const input = (e.target as HTMLFormElement).elements.namedItem(
+                                  'newOpt',
+                                ) as HTMLInputElement
+                                handleAddChoiceOption(qIndex, input.value)
+                                input.value = ''
+                              }}
+                              className="flex gap-2"
+                            >
                               <input
                                 name="newOpt"
                                 className="flex-1 font-body-md text-sm text-on-surface border-b border-on-background bg-transparent focus:outline-none py-1 placeholder:text-outline/50"
                                 placeholder="Add option..."
                                 type="text"
                               />
-                              <button type="submit" className="px-2 py-0.5 brutal-border bg-surface hover:bg-secondary-fixed text-xs font-label-sm uppercase">Add</button>
+                              <button
+                                type="submit"
+                                className="px-2 py-0.5 brutal-border bg-surface hover:bg-secondary-fixed text-xs font-label-sm uppercase"
+                              >
+                                Add
+                              </button>
                             </form>
                           </div>
                         )}
@@ -394,7 +464,9 @@ function Builder() {
                         {q.type === 'rating' && (
                           <div className="flex gap-4 p-2 bg-surface-container border border-dashed border-on-background/30 mt-2">
                             <div className="flex-1">
-                              <label className="font-label-sm text-[10px] text-outline uppercase block">Min Scale (1)</label>
+                              <label className="font-label-sm text-[10px] text-outline uppercase block">
+                                Min Scale (1)
+                              </label>
                               <input
                                 className="w-full bg-transparent border-b border-on-background text-xs py-1"
                                 type="text"
@@ -404,7 +476,9 @@ function Builder() {
                               />
                             </div>
                             <div className="flex-1">
-                              <label className="font-label-sm text-[10px] text-outline uppercase block">Max Scale (5)</label>
+                              <label className="font-label-sm text-[10px] text-outline uppercase block">
+                                Max Scale (5)
+                              </label>
                               <input
                                 className="w-full bg-transparent border-b border-on-background text-xs py-1"
                                 type="text"
@@ -421,10 +495,15 @@ function Builder() {
                             type="checkbox"
                             id={`req-${qIndex}`}
                             checked={q.required}
-                            onChange={(e) => handleUpdateQuestion(qIndex, { required: e.target.checked })}
+                            onChange={(e) =>
+                              handleUpdateQuestion(qIndex, { required: e.target.checked })
+                            }
                             className="w-4 h-4 border-2 border-on-background text-primary focus:ring-primary focus:ring-offset-0 bg-transparent rounded-none"
                           />
-                          <label className="font-label-sm text-xs text-on-surface-variant uppercase cursor-pointer select-none" htmlFor={`req-${qIndex}`}>
+                          <label
+                            className="font-label-sm text-xs text-on-surface-variant uppercase cursor-pointer select-none"
+                            htmlFor={`req-${qIndex}`}
+                          >
                             Required Field
                           </label>
                         </div>
@@ -432,11 +511,16 @@ function Builder() {
                     </div>
                   ))}
 
-                  <button onClick={handleAddQuestion} className="w-full border-3 border-dashed border-on-background py-6 flex flex-col items-center justify-center gap-2 hover:bg-secondary-fixed/20 hover:border-solid hover:border-primary transition-all group">
+                  <button
+                    onClick={handleAddQuestion}
+                    className="w-full border-3 border-dashed border-on-background py-6 flex flex-col items-center justify-center gap-2 hover:bg-secondary-fixed/20 hover:border-solid hover:border-primary transition-all group"
+                  >
                     <div className="w-10 h-10 border-2 border-on-background bg-background flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-colors">
                       <span className="material-symbols-outlined">add</span>
                     </div>
-                    <span className="font-label-lg text-sm uppercase text-on-background">Add Block</span>
+                    <span className="font-label-lg text-sm uppercase text-on-background">
+                      Add Block
+                    </span>
                   </button>
                 </div>
               </>
@@ -450,7 +534,9 @@ function Builder() {
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                   {/* Brand Color */}
                   <div className="border-3 border-on-background bg-surface-bright p-4 space-y-3">
-                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block">Brand Highlight Color</label>
+                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block">
+                      Brand Highlight Color
+                    </label>
                     <div className="flex gap-3 items-center">
                       <input
                         type="color"
@@ -482,7 +568,9 @@ function Builder() {
 
                   {/* Font Family Selection */}
                   <div className="border-3 border-on-background bg-surface-bright p-4 space-y-3">
-                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block">Typography font</label>
+                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block">
+                      Typography font
+                    </label>
                     <select
                       value={survey.font_family}
                       onChange={(e) => setSurvey({ ...survey, font_family: e.target.value })}
@@ -496,7 +584,9 @@ function Builder() {
 
                   {/* Logo URL Input */}
                   <div className="border-3 border-on-background bg-surface-bright p-4 space-y-3">
-                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block">Logo Asset URL</label>
+                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block">
+                      Logo Asset URL
+                    </label>
                     <input
                       className="w-full brutal-border p-3 bg-surface font-body-md text-sm focus:outline-none"
                       type="url"
@@ -504,7 +594,9 @@ function Builder() {
                       value={survey.logo_url || ''}
                       onChange={(e) => setSurvey({ ...survey, logo_url: e.target.value || null })}
                     />
-                    <p className="text-[10px] text-outline uppercase font-label-sm">Optional. Image will render at the top header of public forms.</p>
+                    <p className="text-[10px] text-outline uppercase font-label-sm">
+                      Optional. Image will render at the top header of public forms.
+                    </p>
                   </div>
                 </div>
               </>
@@ -518,7 +610,9 @@ function Builder() {
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                   {/* Public Link */}
                   <div className="border-3 border-on-background bg-surface-bright p-4 space-y-3">
-                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block">DESTINATION_PATH</label>
+                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block">
+                      DESTINATION_PATH
+                    </label>
                     <div className="flex flex-col gap-2">
                       <input
                         className="w-full brutal-border p-3 bg-surface font-label-lg text-sm text-primary select-all focus:outline-none"
@@ -538,14 +632,20 @@ function Builder() {
 
                   {/* Iframe Embed */}
                   <div className="border-3 border-on-background bg-surface-bright p-4 space-y-3">
-                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block">INTEGRATION_PAYLOAD (IFRAME)</label>
+                    <label className="font-label-sm text-xs text-on-surface-variant uppercase block">
+                      INTEGRATION_PAYLOAD (IFRAME)
+                    </label>
                     <textarea
                       className="w-full brutal-border p-3 bg-surface font-label-sm text-xs text-on-surface focus:outline-none h-24"
                       readOnly
                       value={`<iframe src="${window.location.origin}/s/${survey.slug}" width="100%" height="600px" frameborder="0"></iframe>`}
                     />
                     <button
-                      onClick={() => handleCopyLink(`<iframe src="${window.location.origin}/s/${survey.slug}" width="100%" height="600px" frameborder="0"></iframe>`)}
+                      onClick={() =>
+                        handleCopyLink(
+                          `<iframe src="${window.location.origin}/s/${survey.slug}" width="100%" height="600px" frameborder="0"></iframe>`,
+                        )
+                      }
                       className="w-full bg-surface brutal-border font-label-lg uppercase py-3 hover:bg-secondary-container transition-colors flex items-center justify-center gap-2"
                     >
                       <span className="material-symbols-outlined text-sm">code</span>
@@ -561,7 +661,10 @@ function Builder() {
           <div className="w-1/2 flex-grow bg-surface-variant p-8 flex flex-col items-center justify-center relative overflow-y-auto pattern-grid select-none">
             {/* Status Badge */}
             <div className="absolute top-6 right-6 flex items-center gap-2 bg-on-background text-background px-3 py-1 font-label-sm text-xs border-2 border-background shadow-[2px_2px_0px_0px_rgba(255,255,255,1)]">
-              <div className="w-2 h-2 bg-secondary-fixed rounded-full animate-pulse" style={{ backgroundColor: survey.brand_color }}></div>
+              <div
+                className="w-2 h-2 bg-secondary-fixed rounded-full animate-pulse"
+                style={{ backgroundColor: survey.brand_color }}
+              ></div>
               LIVE PREVIEW
             </div>
 
@@ -570,14 +673,24 @@ function Builder() {
                 Add questions on the left to activate preview.
               </div>
             ) : (
-              <div 
+              <div
                 className={`bg-surface-bright border-4 border-on-background neo-brutalist-shadow flex flex-col transition-all duration-300 w-full ${
                   previewDevice === 'mobile' ? 'max-w-[340px]' : 'max-w-lg'
                 }`}
-                style={{ fontFamily: survey.font_family === 'Anton' ? 'Anton' : survey.font_family === 'JetBrains Mono' ? 'JetBrains Mono' : 'Inter' }}
+                style={{
+                  fontFamily:
+                    survey.font_family === 'Anton'
+                      ? 'Anton'
+                      : survey.font_family === 'JetBrains Mono'
+                        ? 'JetBrains Mono'
+                        : 'Inter',
+                }}
               >
                 {/* Preview Header */}
-                <div className="h-4 border-b-4 border-on-background flex items-center px-2 gap-1" style={{ backgroundColor: survey.brand_color }}>
+                <div
+                  className="h-4 border-b-4 border-on-background flex items-center px-2 gap-1"
+                  style={{ backgroundColor: survey.brand_color }}
+                >
                   <div className="w-2 h-2 bg-on-background"></div>
                   <div className="w-2 h-2 bg-on-background"></div>
                   <div className="w-2 h-2 bg-on-background"></div>
@@ -592,19 +705,24 @@ function Builder() {
 
                 {/* Progress Bar */}
                 <div className="w-full h-2 bg-surface-container-high border-b-2 border-on-background">
-                  <div 
-                    className="h-full border-r-2 border-on-background transition-all" 
-                    style={{ 
+                  <div
+                    className="h-full border-r-2 border-on-background transition-all"
+                    style={{
                       width: `${((previewQIndex + 1) / survey.questions.length) * 100}%`,
-                      backgroundColor: survey.brand_color 
+                      backgroundColor: survey.brand_color,
                     }}
                   ></div>
                 </div>
 
                 {/* Question Content */}
                 <div className="p-8 flex flex-col min-h-[350px]">
-                  <div className="font-label-sm mb-4 uppercase tracking-widest text-xs flex items-center gap-2" style={{ color: survey.brand_color }}>
-                    <span>Question {previewQIndex + 1} of {survey.questions.length}</span>
+                  <div
+                    className="font-label-sm mb-4 uppercase tracking-widest text-xs flex items-center gap-2"
+                    style={{ color: survey.brand_color }}
+                  >
+                    <span>
+                      Question {previewQIndex + 1} of {survey.questions.length}
+                    </span>
                     {selectedPreviewQ.required && <span className="text-error font-bold">*</span>}
                   </div>
                   <h3 className="font-headline-sm text-headline-sm mb-6 leading-tight uppercase">
@@ -654,14 +772,16 @@ function Builder() {
 
                     {selectedPreviewQ.type === 'multiple_choice' && (
                       <div className="space-y-3">
-                        {(selectedPreviewQ.config.options || ['No Options Defined']).map((opt, optIdx) => (
-                          <label key={optIdx} className="block relative cursor-pointer">
-                            <div className="p-3 border-3 border-on-background bg-surface hover:bg-surface-container flex items-center gap-3">
-                              <div className="w-5 h-5 border-2 border-on-background bg-surface-bright flex items-center justify-center rounded-full"></div>
-                              <span className="font-body-md text-sm font-medium">{opt}</span>
-                            </div>
-                          </label>
-                        ))}
+                        {(selectedPreviewQ.config.options || ['No Options Defined']).map(
+                          (opt, optIdx) => (
+                            <label key={optIdx} className="block relative cursor-pointer">
+                              <div className="p-3 border-3 border-on-background bg-surface hover:bg-surface-container flex items-center gap-3">
+                                <div className="w-5 h-5 border-2 border-on-background bg-surface-bright flex items-center justify-center rounded-full"></div>
+                                <span className="font-body-md text-sm font-medium">{opt}</span>
+                              </div>
+                            </label>
+                          ),
+                        )}
                       </div>
                     )}
                   </div>
@@ -695,7 +815,9 @@ function Builder() {
               <button
                 onClick={() => setPreviewDevice('desktop')}
                 className={`p-2 border-2 ${
-                  previewDevice === 'desktop' ? 'bg-on-background text-background border-on-background' : 'text-on-surface hover:bg-surface-container border-transparent'
+                  previewDevice === 'desktop'
+                    ? 'bg-on-background text-background border-on-background'
+                    : 'text-on-surface hover:bg-surface-container border-transparent'
                 }`}
               >
                 <span className="material-symbols-outlined">desktop_windows</span>
@@ -703,7 +825,9 @@ function Builder() {
               <button
                 onClick={() => setPreviewDevice('mobile')}
                 className={`p-2 border-2 ${
-                  previewDevice === 'mobile' ? 'bg-on-background text-background border-on-background' : 'text-on-surface hover:bg-surface-container border-transparent'
+                  previewDevice === 'mobile'
+                    ? 'bg-on-background text-background border-on-background'
+                    : 'text-on-surface hover:bg-surface-container border-transparent'
                 }`}
               >
                 <span className="material-symbols-outlined">smartphone</span>

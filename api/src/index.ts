@@ -1,12 +1,13 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { csrf } from 'hono/csrf'
 import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
-import type { AppContext } from './types'
 import { authRoutes } from './routes/auth'
-import { surveyRoutes } from './routes/surveys'
-import { responseRoutes } from './routes/responses'
 import { publicRoutes } from './routes/public'
+import { responseRoutes } from './routes/responses'
+import { surveyRoutes } from './routes/surveys'
+import type { AppContext } from './types'
 
 const app = new Hono<AppContext>()
 
@@ -22,6 +23,8 @@ app.use(
     credentials: true,
   }),
 )
+
+app.use('*', csrf())
 
 app.get('/api/health', (c) => c.json({ ok: true, ts: Date.now() }))
 

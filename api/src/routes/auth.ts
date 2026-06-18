@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { deleteCookie, setCookie } from 'hono/cookie'
 import { generateId, hashPassword, signJWT, verifyPassword } from '../lib/crypto'
 import { authMiddleware } from '../middleware/auth'
 import type { AppContext } from '../types'
@@ -53,7 +54,15 @@ authRoutes.post('/signup', async (c) => {
 
   await c.env.KV.put(`session:${id}`, token, { expirationTtl: 60 * 60 * 24 * 7 })
 
-  return c.json({ token, user: { id, email: body.email } }, 201)
+  setCookie(c, 'decodego_session', token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Strict',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7,
+  })
+
+  return c.json({ user: { id, email: body.email } }, 201)
 })
 
 authRoutes.post('/login', async (c) => {
@@ -99,12 +108,27 @@ authRoutes.post('/login', async (c) => {
 
   await c.env.KV.put(`session:${user.id}`, token, { expirationTtl: 60 * 60 * 24 * 7 })
 
-  return c.json({ token, user: { id: user.id, email: user.email } })
+  setCookie(c, 'decodego_session', token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Strict',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7,
+  })
+
+  return c.json({ user: { id: user.id, email: user.email } })
 })
 
 authRoutes.post('/logout', authMiddleware, async (c) => {
   const userId = c.get('userId')
   await c.env.KV.delete(`session:${userId}`)
+
+  deleteCookie(c, 'decodego_session', {
+    path: '/',
+    secure: true,
+    sameSite: 'Strict',
+  })
+
   return c.json({ success: true })
 })
 

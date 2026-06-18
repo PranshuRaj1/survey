@@ -1,15 +1,15 @@
 import type { MiddlewareHandler } from 'hono'
+import { getCookie } from 'hono/cookie'
 import { verifyJWT } from '../lib/crypto'
 import type { AppContext } from '../types'
 
 export const authMiddleware: MiddlewareHandler<AppContext> = async (c, next) => {
-  const authHeader = c.req.header('Authorization')
+  const token = getCookie(c, 'decodego_session')
 
-  if (!authHeader?.startsWith('Bearer ')) {
-    return c.json({ error: 'Missing or invalid Authorization header' }, 401)
+  if (!token) {
+    return c.json({ error: 'Missing or expired session cookie' }, 401)
   }
 
-  const token = authHeader.slice(7)
   const payload = await verifyJWT(token, c.env.JWT_SECRET)
 
   if (!payload) {

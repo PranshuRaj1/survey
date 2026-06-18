@@ -1,13 +1,19 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
 export const Route = createFileRoute('/login')({
+  beforeLoad: async ({ context }) => {
+    const user = await context.auth.awaitSession()
+    if (user) {
+      throw redirect({ to: '/dashboard' })
+    }
+  },
   component: Login,
 })
 
 function Login() {
-  const { login, isAuthenticated, isLoading } = useAuth()
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [emailTouched, setEmailTouched] = useState(false)
   const [password, setPassword] = useState('')
@@ -36,12 +42,6 @@ function Login() {
     }
     measurePing()
   }, [])
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate({ to: '/dashboard', replace: true })
-    }
-  }, [isAuthenticated, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
