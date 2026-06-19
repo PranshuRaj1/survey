@@ -166,10 +166,6 @@ function Builder() {
   const saveChanges = async (updatedSurvey: SurveyDetail) => {
     if (updatedSurvey.status === 'published') {
       const activeQs = updatedSurvey.questions.filter((q) => !q.deleted_at)
-      if (activeQs.length === 0) {
-        addToast('Cannot publish/save a survey with no questions', 'error')
-        return
-      }
       const hasEmptyMC = activeQs.some(
         (q) =>
           q.type === 'multiple_choice' && (!q.config?.options || q.config.options.length === 0),
@@ -181,23 +177,33 @@ function Builder() {
     }
     setSaving(true)
     try {
-      const res = await apiRequest<{ survey: SurveyDetail }>(`/api/surveys/${surveyId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          title: updatedSurvey.title,
-          brand_color: updatedSurvey.brand_color,
-          logo_url: updatedSurvey.logo_url,
-          font_family: updatedSurvey.font_family,
-          status: updatedSurvey.status,
-          questions: updatedSurvey.questions,
-        }),
-      })
-      setSurvey(res.survey)
-      addToast(
-        'Configuration saved successfully!',
-        'success',
-        `${window.location.origin}/s/${res.survey.slug}`,
+      const res = await apiRequest<{ survey: SurveyDetail; status_reverted?: boolean }>(
+        `/api/surveys/${surveyId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            title: updatedSurvey.title,
+            brand_color: updatedSurvey.brand_color,
+            logo_url: updatedSurvey.logo_url,
+            font_family: updatedSurvey.font_family,
+            status: updatedSurvey.status,
+            questions: updatedSurvey.questions,
+          }),
+        },
       )
+      setSurvey(res.survey)
+      if (res.status_reverted) {
+        addToast(
+          'Configuration saved! Survey reverted to draft because it has no questions.',
+          'success',
+        )
+      } else {
+        addToast(
+          'Configuration saved successfully!',
+          'success',
+          `${window.location.origin}/s/${res.survey.slug}`,
+        )
+      }
     } catch (err: any) {
       addToast(err?.message || 'Failed to save changes', 'error')
     } finally {

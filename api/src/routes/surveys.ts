@@ -238,16 +238,27 @@ surveyRoutes.patch('/:id', async (c) => {
     }
   }
 
-  const isPublished =
-    body.status === 'published' || (body.status === undefined && existing.status === 'published')
-  if (isPublished) {
+  const activeCount = body.questions !== undefined
+    ? body.questions.filter((q) => q.deleted_at === undefined || q.deleted_at === null).length
+    : (await c.env.DB.prepare(
+        'SELECT COUNT(*) as count FROM questions WHERE survey_id = ? AND deleted_at IS NULL'
+      ).bind(id).first<{ count: number }>())?.count ?? 0
+
+  const currentStatus = body.status ?? existing.status
+  let finalStatus = currentStatus
+  let statusReverted = false
+
+  if (currentStatus === 'published' && activeCount === 0) {
+    finalStatus = 'draft'
+    statusReverted = true
+  }
+
+  const willBePublished = finalStatus === 'published'
+  if (willBePublished) {
     if (body.questions !== undefined) {
       const activeQs = body.questions.filter(
         (q) => q.deleted_at === undefined || q.deleted_at === null,
       )
-      if (activeQs.length === 0) {
-        return c.json({ error: 'Cannot publish a survey with no questions' }, 400)
-      }
       for (const q of activeQs) {
         if (q.type === 'multiple_choice') {
           const opts = q.config?.options
@@ -263,9 +274,6 @@ surveyRoutes.patch('/:id', async (c) => {
         .bind(id)
         .all<{ type: string; config_json: string }>()
 
-      if (existingQs.results.length === 0) {
-        return c.json({ error: 'Cannot publish a survey with no questions' }, 400)
-      }
       for (const q of existingQs.results) {
         if (q.type === 'multiple_choice') {
           let config: any = {}
@@ -299,9 +307,9 @@ surveyRoutes.patch('/:id', async (c) => {
     fields.push('font_family = ?')
     values.push(body.font_family)
   }
-  if (body.status !== undefined) {
+  if (body.status !== undefined || statusReverted) {
     fields.push('status = ?')
-    values.push(body.status)
+    values.push(finalStatus)
   }
 
   if (fields.length > 0) {
@@ -430,6 +438,7 @@ surveyRoutes.patch('/:id', async (c) => {
         config: JSON.parse(q.config_json),
       })),
     },
+    status_reverted: statusReverted,
   })
 })
 
