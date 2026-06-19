@@ -14,6 +14,9 @@ interface Question {
     min?: number
     max?: number
   }
+  deleted_at?: number | null
+  response_count?: number
+  created_at?: number
 }
 
 interface SurveyDetail {
@@ -157,13 +160,17 @@ function Builder() {
     )
   }
 
+  const activeQuestions = survey.questions.filter((q) => !q.deleted_at)
+  const deletedQuestions = survey.questions.filter((q) => q.deleted_at)
+
   const saveChanges = async (updatedSurvey: SurveyDetail) => {
     if (updatedSurvey.status === 'published') {
-      if (updatedSurvey.questions.length === 0) {
+      const activeQs = updatedSurvey.questions.filter((q) => !q.deleted_at)
+      if (activeQs.length === 0) {
         addToast('Cannot publish/save a survey with no questions', 'error')
         return
       }
-      const hasEmptyMC = updatedSurvey.questions.some(
+      const hasEmptyMC = activeQs.some(
         (q) =>
           q.type === 'multiple_choice' && (!q.config?.options || q.config.options.length === 0),
       )
@@ -205,74 +212,123 @@ function Builder() {
 
   const handleAddQuestion = () => {
     const newQ: Question = {
+      id: 'temp_' + Math.random().toString(36).substring(2, 9),
       type: 'short_text',
       label: 'New Question',
-      sort_order: survey.questions.length,
+      sort_order: activeQuestions.length,
       required: false,
       config: {},
+      created_at: Math.floor(Date.now() / 1000),
     }
     const updated = { ...survey, questions: [...survey.questions, newQ] }
     setSurvey(updated)
   }
 
-  const handleUpdateQuestion = (index: number, fields: Partial<Question>) => {
-    const questions = [...survey.questions]
-    questions[index] = { ...questions[index], ...fields } as Question
-    const updated = { ...survey, questions }
-    setSurvey(updated)
+  const handleUpdateQuestion = (id: string, fields: Partial<Question>) => {
+    const questions = survey.questions.map((q) => {
+      if (q.id === id) {
+        return { ...q, ...fields }
+      }
+      return q
+    })
+    setSurvey({ ...survey, questions })
   }
 
-  const handleDeleteQuestion = (index: number) => {
-    const questions = survey.questions
-      .filter((_, i) => i !== index)
-      .map((q, i) => ({ ...q, sort_order: i }))
-    const updated = { ...survey, questions }
-    setSurvey(updated)
-    if (previewQIndex >= questions.length && questions.length > 0) {
-      setPreviewQIndex(questions.length - 1)
+  const handleDeleteQuestion = (id: string) => {
+    const q = survey.questions.find((item) => item.id === id)
+    if (!q) return
+
+    if (q.response_count && q.response_count > 0) {
+      const confirmDelete = window.confirm(
+        `This question has ${q.response_count} responses. Deleting it will hide it from new respondents, but existing answers stay in your data and CSV export.\n\nAre you sure you want to delete it?`,
+      )
+      if (!confirmDelete) return
+    }
+
+    let updated: Question[]
+    if (q.id && !q.id.startsWith('temp_')) {
+      updated = survey.questions.map((item) => {
+        if (item.id === id) {
+          return { ...item, deleted_at: Math.floor(Date.now() / 1000) }
+        }
+        return item
+      })
+    } else {
+      updated = survey.questions.filter((item) => item.id !== id)
+    }
+
+    let activeIdx = 0
+    const reordered = updated.map((item) => {
+      if (!item.deleted_at) {
+        return { ...item, sort_order: activeIdx++ }
+      }
+      return item
+    })
+
+    setSurvey({ ...survey, questions: reordered })
+
+    const activeLength = reordered.filter((item) => !item.deleted_at).length
+    if (previewQIndex >= activeLength && activeLength > 0) {
+      setPreviewQIndex(activeLength - 1)
     }
   }
 
-  const handleMoveQuestion = (index: number, direction: 'up' | 'down') => {
-    if (direction === 'up' && index === 0) return
-    if (direction === 'down' && index === survey.questions.length - 1) return
+  const handleMoveQuestion = (activeIdx: number, direction: 'up' | 'down') => {
+    const activeQs = survey.questions.filter((q) => !q.deleted_at)
+    if (direction === 'up' && activeIdx === 0) return
+    if (direction === 'down' && activeIdx === activeQs.length - 1) return
 
-    const questions = [...survey.questions]
-    const swapTarget = direction === 'up' ? index - 1 : index + 1
-    const temp = questions[index]
-    const target = questions[swapTarget]
+    const targetIdx = direction === 'up' ? activeIdx - 1 : activeIdx + 1
+    const temp = activeQs[activeIdx]
+    const target = activeQs[targetIdx]
     if (temp === undefined || target === undefined) return
-    questions[index] = target
-    questions[swapTarget] = temp
+    activeQs[activeIdx] = target
+    activeQs[targetIdx] = temp
 
-    // Re-assign sort_orders
-    const reordered = questions.map((q, idx) => ({ ...q, sort_order: idx }))
-    setSurvey({ ...survey, questions: reordered })
+    const reorderedActive = activeQs.map((q, idx) => ({ ...q, sort_order: idx }))
+    const archivedQs = survey.questions.filter((q) => q.deleted_at)
+    setSurvey({ ...survey, questions: [...reorderedActive, ...archivedQs] })
   }
 
-  const handleAddChoiceOption = (qIndex: number, text: string) => {
+  const handleRestoreQuestion = (id: string) => {
+    const activeQs = survey.questions.filter((q) => !q.deleted_at)
+    const updated = survey.questions.map((q) => {
+      if (q.id === id) {
+        return {
+          ...q,
+          deleted_at: null,
+          sort_order: activeQs.length,
+        }
+      }
+      return q
+    })
+    setSurvey({ ...survey, questions: updated })
+  }
+
+  const handleAddChoiceOption = (qId: string, text: string) => {
     if (!text.trim()) return
-    const q = survey.questions[qIndex]
+    const q = survey.questions.find((item) => item.id === qId)
     if (!q) return
     const currentOptions = q.config.options || []
     const updatedOptions = [...currentOptions, text.trim()]
-    handleUpdateQuestion(qIndex, { config: { ...q.config, options: updatedOptions } })
+    handleUpdateQuestion(qId, { config: { ...q.config, options: updatedOptions } })
   }
 
-  const handleRemoveChoiceOption = (qIndex: number, optIndex: number) => {
-    const q = survey.questions[qIndex]
+  const handleRemoveChoiceOption = (qId: string, optIndex: number) => {
+    const q = survey.questions.find((item) => item.id === qId)
     if (!q) return
     const currentOptions = q.config.options || []
     const updatedOptions = currentOptions.filter((_, i) => i !== optIndex)
-    handleUpdateQuestion(qIndex, { config: { ...q.config, options: updatedOptions } })
+    handleUpdateQuestion(qId, { config: { ...q.config, options: updatedOptions } })
   }
 
   const handlePublish = async () => {
-    if (survey.questions.length === 0) {
+    const activeQs = survey.questions.filter((q) => !q.deleted_at)
+    if (activeQs.length === 0) {
       addToast('Cannot publish a survey with no questions', 'error')
       return
     }
-    const hasEmptyMC = survey.questions.some(
+    const hasEmptyMC = activeQs.some(
       (q) => q.type === 'multiple_choice' && (!q.config?.options || q.config.options.length === 0),
     )
     if (hasEmptyMC) {
@@ -437,10 +493,11 @@ function Builder() {
           <div className="px-4 mt-auto pb-4">
             {survey.status === 'draft' ? (
               <button
+                type="button"
                 onClick={handlePublish}
-                disabled={survey.questions.length === 0}
+                disabled={activeQuestions.length === 0}
                 className={`w-full bg-secondary text-on-secondary border-2 border-on-background px-4 py-3 font-label-lg uppercase transition-all flex justify-center items-center gap-2 ${
-                  survey.questions.length === 0
+                  activeQuestions.length === 0
                     ? 'opacity-40 cursor-not-allowed pointer-events-none'
                     : 'neo-brutalist-shadow neo-brutalist-shadow-hover'
                 }`}
@@ -465,7 +522,7 @@ function Builder() {
                 <div className="bg-on-background text-background px-6 py-3 flex justify-between items-center shrink-0">
                   <h2 className="font-label-lg text-label-lg uppercase">Questions Structure</h2>
                   <span className="text-xs font-label-sm px-2 py-1 bg-surface-container-highest text-on-background border border-background">
-                    {survey.questions.length} {survey.questions.length === 1 ? 'ITEM' : 'ITEMS'}
+                    {activeQuestions.length} {activeQuestions.length === 1 ? 'ITEM' : 'ITEMS'}
                   </span>
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -482,9 +539,9 @@ function Builder() {
                     />
                   </div>
 
-                  {survey.questions.map((q, qIndex) => (
+                  {activeQuestions.map((q, qIndex) => (
                     <div
-                      key={qIndex}
+                      key={q.id || qIndex}
                       className="border-3 border-on-background bg-surface-bright relative group"
                     >
                       <div className="absolute -left-3 top-3 bottom-3 w-1.5 bg-secondary group-hover:bg-primary transition-colors"></div>
@@ -492,18 +549,20 @@ function Builder() {
                         <div className="flex items-center gap-3">
                           <div className="flex flex-col gap-1">
                             <button
+                              type="button"
                               disabled={qIndex === 0}
                               onClick={() => handleMoveQuestion(qIndex, 'up')}
-                              className="text-on-surface hover:text-primary disabled:opacity-30"
+                              className="text-on-surface hover:text-primary disabled:opacity-30 cursor-pointer"
                             >
                               <span className="material-symbols-outlined text-[16px]">
                                 keyboard_arrow_up
                               </span>
                             </button>
                             <button
-                              disabled={qIndex === survey.questions.length - 1}
+                              type="button"
+                              disabled={qIndex === activeQuestions.length - 1}
                               onClick={() => handleMoveQuestion(qIndex, 'down')}
-                              className="text-on-surface hover:text-primary disabled:opacity-30"
+                              className="text-on-surface hover:text-primary disabled:opacity-30 cursor-pointer"
                             >
                               <span className="material-symbols-outlined text-[16px]">
                                 keyboard_arrow_down
@@ -517,7 +576,7 @@ function Builder() {
                             <select
                               value={q.type}
                               onChange={(e) =>
-                                handleUpdateQuestion(qIndex, { type: e.target.value as any })
+                                handleUpdateQuestion(q.id || '', { type: e.target.value as any })
                               }
                               className="font-label-sm text-xs bg-surface-container-highest text-on-surface px-2 py-0.5 border border-on-background ml-2 rounded-none focus:outline-none"
                             >
@@ -531,8 +590,9 @@ function Builder() {
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => handleDeleteQuestion(qIndex)}
-                            className="p-1 hover:bg-error-container hover:text-error transition-colors"
+                            type="button"
+                            onClick={() => handleDeleteQuestion(q.id || '')}
+                            className="p-1 hover:bg-error-container hover:text-error transition-colors cursor-pointer"
                             title="Delete Block"
                           >
                             <span className="material-symbols-outlined text-sm">delete</span>
@@ -544,7 +604,9 @@ function Builder() {
                           className="w-full font-body-md text-on-surface border-b-2 border-on-background bg-transparent focus:outline-none focus:bg-primary-fixed-dim/10 focus:border-primary p-2 transition-colors"
                           type="text"
                           value={q.label}
-                          onChange={(e) => handleUpdateQuestion(qIndex, { label: e.target.value })}
+                          onChange={(e) =>
+                            handleUpdateQuestion(q.id || '', { label: e.target.value })
+                          }
                         />
 
                         {/* Config rendering based on type */}
@@ -560,8 +622,9 @@ function Builder() {
                                   {opt}
                                 </span>
                                 <button
-                                  onClick={() => handleRemoveChoiceOption(qIndex, optIdx)}
-                                  className="p-1 text-on-surface-variant hover:text-error"
+                                  type="button"
+                                  onClick={() => handleRemoveChoiceOption(q.id || '', optIdx)}
+                                  className="p-1 text-on-surface-variant hover:text-error cursor-pointer"
                                 >
                                   <span className="material-symbols-outlined text-[16px]">
                                     close
@@ -576,7 +639,7 @@ function Builder() {
                                 const input = (e.target as HTMLFormElement).elements.namedItem(
                                   'newOpt',
                                 ) as HTMLInputElement
-                                handleAddChoiceOption(qIndex, input.value)
+                                handleAddChoiceOption(q.id || '', input.value)
                                 input.value = ''
                               }}
                               className="flex gap-2"
@@ -589,7 +652,7 @@ function Builder() {
                               />
                               <button
                                 type="submit"
-                                className="px-2 py-0.5 brutal-border bg-surface hover:bg-secondary-fixed text-xs font-label-sm uppercase"
+                                className="px-2 py-0.5 brutal-border bg-surface hover:bg-secondary-fixed text-xs font-label-sm uppercase cursor-pointer"
                               >
                                 Add
                               </button>
@@ -629,16 +692,16 @@ function Builder() {
                         <div className="flex items-center gap-2 pt-2">
                           <input
                             type="checkbox"
-                            id={`req-${qIndex}`}
+                            id={`req-${q.id}`}
                             checked={q.required}
                             onChange={(e) =>
-                              handleUpdateQuestion(qIndex, { required: e.target.checked })
+                              handleUpdateQuestion(q.id || '', { required: e.target.checked })
                             }
                             className="w-4 h-4 border-2 border-on-background text-primary focus:ring-primary focus:ring-offset-0 bg-transparent rounded-none"
                           />
                           <label
                             className="font-label-sm text-xs text-on-surface-variant uppercase cursor-pointer select-none"
-                            htmlFor={`req-${qIndex}`}
+                            htmlFor={`req-${q.id}`}
                           >
                             Required Field
                           </label>
@@ -646,6 +709,44 @@ function Builder() {
                       </div>
                     </div>
                   ))}
+
+                  {deletedQuestions.length > 0 && (
+                    <div className="border-3 border-dashed border-on-background bg-surface-bright/50 p-4 mt-6">
+                      <h3 className="font-label-lg text-sm uppercase mb-3 flex items-center gap-2 text-on-surface-variant">
+                        <span className="material-symbols-outlined text-sm">archive</span>
+                        Archived Questions ({deletedQuestions.length})
+                      </h3>
+                      <div className="space-y-3">
+                        {deletedQuestions.map((q) => (
+                          <div
+                            key={q.id}
+                            className="border-2 border-on-background bg-surface-bright/80 p-3 flex justify-between items-center opacity-70"
+                          >
+                            <div className="flex-1 min-w-0 pr-3">
+                              <div className="font-label-sm text-[10px] text-outline uppercase">
+                                {q.type}
+                              </div>
+                              <div className="font-body-md text-sm truncate font-bold text-on-surface">
+                                {q.label}
+                              </div>
+                              {q.response_count !== undefined && q.response_count > 0 && (
+                                <div className="font-label-sm text-[9px] text-primary uppercase mt-1 font-bold">
+                                  {q.response_count} historical response(s)
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreQuestion(q.id || '')}
+                              className="px-3 py-1.5 brutal-border bg-surface text-on-surface hover:bg-secondary-fixed text-xs font-label-sm uppercase cursor-pointer transition-colors"
+                            >
+                              Restore
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <button
                     onClick={handleAddQuestion}
@@ -804,7 +905,7 @@ function Builder() {
               LIVE PREVIEW
             </div>
 
-            {survey.questions.length === 0 ? (
+            {activeQuestions.length === 0 ? (
               <div className="bg-surface-bright border-4 border-on-background p-8 font-label-lg uppercase text-center w-full max-w-lg">
                 Add questions on the left to activate preview.
               </div>
@@ -831,25 +932,22 @@ function Builder() {
                   <div className="w-2 h-2 bg-on-background"></div>
                   <div className="w-2 h-2 bg-on-background"></div>
                 </div>
-
                 {/* Optional Logo */}
                 {survey.logo_url && (
                   <div className="border-b-2 border-on-background p-4 flex justify-center bg-surface shrink-0 h-16 items-center">
                     <img src={survey.logo_url} alt="Logo" className="max-h-12 object-contain" />
                   </div>
-                )}
-
+                )}{' '}
                 {/* Progress Bar */}
                 <div className="w-full h-2 bg-surface-container-high border-b-2 border-on-background">
                   <div
                     className="h-full border-r-2 border-on-background transition-all"
                     style={{
-                      width: `${((previewQIndex + 1) / survey.questions.length) * 100}%`,
+                      width: `${((previewQIndex + 1) / activeQuestions.length) * 100}%`,
                       backgroundColor: survey.brand_color,
                     }}
                   ></div>
                 </div>
-
                 {/* Question Content */}
                 <div className="p-8 flex flex-col min-h-[350px]">
                   <div
@@ -857,7 +955,7 @@ function Builder() {
                     style={{ color: survey.brand_color }}
                   >
                     <span>
-                      Question {previewQIndex + 1} of {survey.questions.length}
+                      Question {previewQIndex + 1} of {activeQuestions.length}
                     </span>
                     {selectedPreviewQ.required && <span className="text-error font-bold">*</span>}
                   </div>
@@ -933,7 +1031,8 @@ function Builder() {
                       Prev
                     </button>
                     <button
-                      disabled={previewQIndex === survey.questions.length - 1}
+                      type="button"
+                      disabled={previewQIndex === activeQuestions.length - 1}
                       onClick={() => setPreviewQIndex(previewQIndex + 1)}
                       className="bg-on-background text-background border-2 border-on-background px-6 py-2 font-label-lg uppercase hover:bg-primary hover:text-white transition-colors flex items-center gap-2 disabled:opacity-45"
                       style={{ backgroundColor: survey.brand_color }}

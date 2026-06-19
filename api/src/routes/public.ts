@@ -46,7 +46,7 @@ publicRoutes.get('/survey/:slug', async (c) => {
   const questions = await c.env.DB.prepare(
     `SELECT id, type, label, sort_order, required, config_json
      FROM questions
-     WHERE survey_id = ?
+     WHERE survey_id = ? AND deleted_at IS NULL
      ORDER BY sort_order ASC`,
   )
     .bind(survey.id)
@@ -149,7 +149,7 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
   }
 
   const questions = await c.env.DB.prepare(
-    `SELECT id, type, label, required, config_json FROM questions WHERE survey_id = ?`,
+    `SELECT id, type, label, required, config_json FROM questions WHERE survey_id = ? AND deleted_at IS NULL`,
   )
     .bind(survey.id)
     .all<{ id: string; type: string; label: string; required: number; config_json: string }>()

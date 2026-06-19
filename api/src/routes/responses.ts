@@ -109,7 +109,7 @@ responseRoutes.get('/:surveyId/analytics', async (c) => {
 
   const questions = await c.env.DB.prepare(
     `SELECT id, type, label, config_json
-     FROM questions WHERE survey_id = ? ORDER BY sort_order`,
+     FROM questions WHERE survey_id = ? AND deleted_at IS NULL ORDER BY sort_order`,
   )
     .bind(surveyId)
     .all<{ id: string; type: string; label: string; config_json: string }>()
@@ -120,7 +120,7 @@ responseRoutes.get('/:surveyId/analytics', async (c) => {
     `SELECT ra.question_id, ra.value_json
      FROM response_answers ra
      JOIN questions q ON q.id = ra.question_id
-     WHERE q.survey_id = ?`,
+     WHERE q.survey_id = ? AND q.deleted_at IS NULL`,
   )
     .bind(surveyId)
     .all<{ question_id: string; value_json: string }>()
@@ -180,17 +180,17 @@ responseRoutes.get('/:surveyId/export', async (c) => {
     return c.json({ error: 'Survey not found' }, 404)
   }
 
-  // 1. Fetch active questions currently in the survey
+  // 1. Fetch all questions currently or historically in the survey
   const questions = await c.env.DB.prepare(
-    `SELECT id, label, type
+    `SELECT id, label, type, deleted_at
      FROM questions
      WHERE survey_id = ?
      ORDER BY sort_order ASC`,
   )
     .bind(surveyId)
-    .all<{ id: string; label: string; type: string }>()
+    .all<{ id: string; label: string; type: string; deleted_at: number | null }>()
 
-  const activeQuestionIds = new Set(questions.results.map((q) => q.id))
+  const allQuestionIds = new Set(questions.results.map((q) => q.id))
 
   // 2. Fetch all responses (no limit)
   const responses = await c.env.DB.prepare(
@@ -215,7 +215,7 @@ responseRoutes.get('/:surveyId/export', async (c) => {
   // Pivot answers by response_id and question_id in memory (safely dropping missing questions)
   const answersMap = new Map<string, Map<string, unknown>>()
   for (const a of answers.results) {
-    if (!activeQuestionIds.has(a.question_id)) {
+    if (!allQuestionIds.has(a.question_id)) {
       continue
     }
     let responseMap = answersMap.get(a.response_id)
@@ -265,7 +265,11 @@ responseRoutes.get('/:surveyId/export', async (c) => {
   }
 
   // Build CSV content
-  const headers = ['Response ID', 'Submitted At', ...questions.results.map((q) => q.label)]
+  const headers = [
+    'Response ID',
+    'Submitted At',
+    ...questions.results.map((q) => (q.deleted_at !== null ? `${q.label} (Deleted)` : q.label)),
+  ]
   const csvRows = [headers.map((h) => formatCsvCell(h)).join(',')]
 
   for (const r of responses.results) {

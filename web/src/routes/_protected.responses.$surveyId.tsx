@@ -20,6 +20,8 @@ interface Question {
   id: string
   label: string
   type: string
+  deleted_at?: number | null
+  created_at?: number
 }
 
 interface SurveyData {
@@ -31,6 +33,7 @@ interface SurveyData {
 interface ProcessedResponseItem extends ResponseItem {
   completionPercentage: number
   status: 'COMPLETED' | 'PARTIAL'
+  totalQuestionsCount: number
 }
 
 export const Route = createFileRoute('/_protected/responses/$surveyId')({
@@ -103,11 +106,28 @@ function Responses() {
     )
   }
 
-  const totalQuestions = survey.questions.length
-
   // Process and filter responses
   const processedResponses: ProcessedResponseItem[] = responses.map((r) => {
-    const answeredCount = r.answers.length
+    const submittedAt = Number(r.submitted_at)
+    // A question was active at response submission time if it was created before submission
+    // and not deleted yet (or deleted after submission)
+    const activeQuestionsAtSubmission = survey.questions.filter((q) => {
+      const createdAt =
+        q.created_at !== undefined && q.created_at !== null ? Number(q.created_at) : 0
+      const deletedAt =
+        q.deleted_at !== undefined && q.deleted_at !== null && q.deleted_at !== 0
+          ? Number(q.deleted_at)
+          : null
+
+      const isCreated = createdAt <= submittedAt
+      const isNotDeleted = deletedAt === null || submittedAt < deletedAt
+      return isCreated && isNotDeleted
+    })
+
+    const totalQuestions = activeQuestionsAtSubmission.length
+    const activeQuestionIds = new Set(activeQuestionsAtSubmission.map((q) => q.id))
+    const answeredCount = r.answers.filter((ans) => activeQuestionIds.has(ans.question_id)).length
+
     const completionPercentage =
       totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0
     const status = completionPercentage === 100 ? 'COMPLETED' : 'PARTIAL'
@@ -116,6 +136,7 @@ function Responses() {
       ...r,
       completionPercentage,
       status,
+      totalQuestionsCount: totalQuestions,
     }
   })
 
@@ -367,54 +388,94 @@ function Responses() {
                 <div>
                   <span className="text-outline uppercase block">COMPLETION</span>
                   <span className="font-bold">
-                    {activeResponse.completionPercentage}% ({activeResponse.answers.length}/
-                    {totalQuestions} ANSWERS)
+                    {activeResponse.completionPercentage}% (
+                    {
+                      activeResponse.answers.filter((ans) => {
+                        const q = survey.questions.find((q) => q.id === ans.question_id)
+                        if (!q) return false
+                        const createdAt =
+                          q.created_at !== undefined && q.created_at !== null
+                            ? Number(q.created_at)
+                            : 0
+                        const deletedAt =
+                          q.deleted_at !== undefined && q.deleted_at !== null && q.deleted_at !== 0
+                            ? Number(q.deleted_at)
+                            : null
+                        const submittedAt = Number(activeResponse.submitted_at)
+                        return (
+                          createdAt <= submittedAt &&
+                          (deletedAt === null || submittedAt < deletedAt)
+                        )
+                      }).length
+                    }
+                    /{activeResponse.totalQuestionsCount} ANSWERS)
                   </span>
                 </div>
               </div>
 
-              {survey.questions.map((q, qIdx) => {
-                const answer = activeResponse.answers.find((a) => a.question_id === q.id)
-                let valText = '[NO RESPONSE]'
-                if (
-                  answer &&
-                  answer.value !== undefined &&
-                  answer.value !== null &&
-                  answer.value !== ''
-                ) {
-                  if (Array.isArray(answer.value)) {
-                    valText = answer.value.join(', ')
-                  } else {
-                    valText = String(answer.value)
-                  }
-                }
+              {survey.questions
+                .filter((q) => {
+                  const createdAt =
+                    q.created_at !== undefined && q.created_at !== null ? Number(q.created_at) : 0
+                  const deletedAt =
+                    q.deleted_at !== undefined && q.deleted_at !== null && q.deleted_at !== 0
+                      ? Number(q.deleted_at)
+                      : null
+                  const submittedAt = Number(activeResponse.submitted_at)
 
-                return (
-                  <div
-                    key={q.id}
-                    className="p-4 border-2 border-on-background bg-surface-bright flex flex-col gap-2"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="bg-on-background text-background px-2 py-0.5 text-[10px] font-label-sm">
-                        Q{qIdx + 1}
-                      </span>
-                      <span className="font-label-sm text-xs text-outline uppercase">
-                        {q.type.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <div className="font-bold font-body-md text-sm text-on-background">
-                      {q.label}
-                    </div>
+                  const isCreated = createdAt <= submittedAt
+                  const isNotDeleted = deletedAt === null || submittedAt < deletedAt
+                  return isCreated && isNotDeleted
+                })
+                .map((q, qIdx) => {
+                  const answer = activeResponse.answers.find((a) => a.question_id === q.id)
+                  let valText = '[NO RESPONSE]'
+                  if (
+                    answer &&
+                    answer.value !== undefined &&
+                    answer.value !== null &&
+                    answer.value !== ''
+                  ) {
+                    if (Array.isArray(answer.value)) {
+                      valText = answer.value.join(', ')
+                    } else {
+                      valText = String(answer.value)
+                    }
+                  }
+
+                  return (
                     <div
-                      className={`p-3 border border-dashed border-on-background/30 font-label-lg text-sm bg-surface-container ${
-                        valText === '[NO RESPONSE]' ? 'text-outline/60 italic' : 'text-primary'
-                      }`}
+                      key={q.id}
+                      className="p-4 border-2 border-on-background bg-surface-bright flex flex-col gap-2"
                     >
-                      {valText}
+                      <div className="flex items-center gap-2">
+                        <span className="bg-on-background text-background px-2 py-0.5 text-[10px] font-label-sm">
+                          Q{qIdx + 1}
+                        </span>
+                        <span className="font-label-sm text-xs text-outline uppercase">
+                          {q.type.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <div className="font-bold font-body-md text-sm text-on-background flex items-center gap-2">
+                        <span>{q.label}</span>
+                        {q.deleted_at !== undefined &&
+                          q.deleted_at !== null &&
+                          q.deleted_at !== 0 && (
+                            <span className="bg-error-container text-on-error-container text-[10px] px-2 py-0.5 font-bold uppercase brutal-border">
+                              Archived
+                            </span>
+                          )}
+                      </div>
+                      <div
+                        className={`p-3 border border-dashed border-on-background/30 font-label-lg text-sm bg-surface-container ${
+                          valText === '[NO RESPONSE]' ? 'text-outline/60 italic' : 'text-primary'
+                        }`}
+                      >
+                        {valText}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
             </div>
             <footer className="bg-surface-container-low border-t-3 border-on-background p-6 flex justify-end shrink-0">
               <button

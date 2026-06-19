@@ -74,10 +74,11 @@ surveyRoutes.get('/:id', async (c) => {
   }
 
   const questions = await c.env.DB.prepare(
-    `SELECT id, type, label, sort_order, required, config_json
-     FROM questions
-     WHERE survey_id = ?
-     ORDER BY sort_order ASC`,
+    `SELECT q.id, q.type, q.label, q.sort_order, q.required, q.config_json, q.deleted_at, q.created_at,
+            (SELECT COUNT(*) FROM response_answers ra WHERE ra.question_id = q.id) as response_count
+     FROM questions q
+     WHERE q.survey_id = ?
+     ORDER BY q.sort_order ASC`,
   )
     .bind(id)
     .all<{
@@ -87,6 +88,9 @@ surveyRoutes.get('/:id', async (c) => {
       sort_order: number
       required: number
       config_json: string
+      deleted_at: number | null
+      created_at: number
+      response_count: number
     }>()
 
   const parsedQuestions = questions.results.map((q) => ({
@@ -158,6 +162,8 @@ surveyRoutes.patch('/:id', async (c) => {
       sort_order: number
       required?: boolean
       config?: Record<string, unknown>
+      deleted_at?: number | null
+      created_at?: number
     }>
   }
   try {
@@ -223,6 +229,12 @@ surveyRoutes.patch('/:id', async (c) => {
       if (q.config !== undefined && (typeof q.config !== 'object' || q.config === null)) {
         return c.json({ error: 'Question config must be a valid object' }, 400)
       }
+      if (q.deleted_at !== undefined && q.deleted_at !== null && typeof q.deleted_at !== 'number') {
+        return c.json({ error: 'Question deleted_at must be a number or null' }, 400)
+      }
+      if (q.created_at !== undefined && typeof q.created_at !== 'number') {
+        return c.json({ error: 'Question created_at must be a number' }, 400)
+      }
     }
   }
 
@@ -230,10 +242,13 @@ surveyRoutes.patch('/:id', async (c) => {
     body.status === 'published' || (body.status === undefined && existing.status === 'published')
   if (isPublished) {
     if (body.questions !== undefined) {
-      if (body.questions.length === 0) {
+      const activeQs = body.questions.filter(
+        (q) => q.deleted_at === undefined || q.deleted_at === null,
+      )
+      if (activeQs.length === 0) {
         return c.json({ error: 'Cannot publish a survey with no questions' }, 400)
       }
-      for (const q of body.questions) {
+      for (const q of activeQs) {
         if (q.type === 'multiple_choice') {
           const opts = q.config?.options
           if (!Array.isArray(opts) || opts.length === 0) {
@@ -243,7 +258,7 @@ surveyRoutes.patch('/:id', async (c) => {
       }
     } else {
       const existingQs = await c.env.DB.prepare(
-        'SELECT type, config_json FROM questions WHERE survey_id = ?',
+        'SELECT type, config_json FROM questions WHERE survey_id = ? AND deleted_at IS NULL',
       )
         .bind(id)
         .all<{ type: string; config_json: string }>()
@@ -300,42 +315,31 @@ surveyRoutes.patch('/:id', async (c) => {
   }
 
   if (body.questions !== undefined) {
-    const existingQuestions = await c.env.DB.prepare('SELECT id FROM questions WHERE survey_id = ?')
+    const existingQuestions = await c.env.DB.prepare(
+      'SELECT id, deleted_at FROM questions WHERE survey_id = ?',
+    )
       .bind(id)
-      .all<{ id: string }>()
+      .all<{ id: string; deleted_at: number | null }>()
 
     const existingIds = existingQuestions.results.map((q) => q.id)
-    const incomingIds = body.questions.map((q) => q.id).filter(Boolean) as string[]
-    const toDelete = existingIds.filter((exId) => !incomingIds.includes(exId))
+    const activeIds = existingQuestions.results
+      .filter((q) => q.deleted_at === null)
+      .map((q) => q.id)
+    const incomingActiveIds = body.questions
+      .filter((q) => q.deleted_at === undefined || q.deleted_at === null)
+      .map((q) => q.id)
+      .filter(Boolean) as string[]
+
+    const toDelete = activeIds.filter((exId) => !incomingActiveIds.includes(exId))
     const placeholders = toDelete.map(() => '?').join(', ')
-
-    if (toDelete.length > 0) {
-      const answerCheck = await c.env.DB.prepare(
-        `SELECT DISTINCT question_id FROM response_answers WHERE question_id IN (${placeholders})`,
-      )
-        .bind(...toDelete)
-        .all<{ question_id: string }>()
-
-      if (answerCheck.results.length > 0) {
-        return c.json(
-          {
-            error: 'Cannot delete questions that already have responses',
-            details: {
-              question_ids: answerCheck.results.map((r) => r.question_id),
-            },
-          },
-          400,
-        )
-      }
-    }
 
     const stmts: ReturnType<typeof c.env.DB.prepare>[] = []
 
     if (toDelete.length > 0) {
       stmts.push(
         c.env.DB.prepare(
-          `DELETE FROM questions WHERE survey_id = ? AND id IN (${placeholders})`,
-        ).bind(id, ...toDelete),
+          `UPDATE questions SET deleted_at = ? WHERE survey_id = ? AND id IN (${placeholders})`,
+        ).bind(Math.floor(Date.now() / 1000), id, ...toDelete),
       )
     }
 
@@ -343,10 +347,11 @@ surveyRoutes.patch('/:id', async (c) => {
       const qId = q.id
 
       if (qId && existingIds.includes(qId)) {
+        const delAt = q.deleted_at ?? null
         stmts.push(
           c.env.DB.prepare(
             `UPDATE questions
-             SET type = ?, label = ?, sort_order = ?, required = ?, config_json = ?
+             SET type = ?, label = ?, sort_order = ?, required = ?, config_json = ?, deleted_at = ?
              WHERE id = ? AND survey_id = ?`,
           ).bind(
             q.type,
@@ -354,16 +359,19 @@ surveyRoutes.patch('/:id', async (c) => {
             q.sort_order ?? i,
             q.required ? 1 : 0,
             JSON.stringify(q.config ?? {}),
+            delAt,
             qId,
             id,
           ),
         )
       } else {
         const newId = qId || generateId()
+        const delAt = q.deleted_at ?? null
+        const createdAt = q.created_at ?? Math.floor(Date.now() / 1000)
         stmts.push(
           c.env.DB.prepare(
-            `INSERT INTO questions (id, survey_id, type, label, sort_order, required, config_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO questions (id, survey_id, type, label, sort_order, required, config_json, deleted_at, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ).bind(
             newId,
             id,
@@ -372,6 +380,8 @@ surveyRoutes.patch('/:id', async (c) => {
             q.sort_order ?? i,
             q.required ? 1 : 0,
             JSON.stringify(q.config ?? {}),
+            delAt,
+            createdAt,
           ),
         )
       }
@@ -394,8 +404,9 @@ surveyRoutes.patch('/:id', async (c) => {
     .first()
 
   const questions = await c.env.DB.prepare(
-    `SELECT id, type, label, sort_order, required, config_json
-     FROM questions WHERE survey_id = ? ORDER BY sort_order`,
+    `SELECT q.id, q.type, q.label, q.sort_order, q.required, q.config_json, q.deleted_at, q.created_at,
+            (SELECT COUNT(*) FROM response_answers ra WHERE ra.question_id = q.id) as response_count
+     FROM questions q WHERE q.survey_id = ? ORDER BY q.sort_order`,
   )
     .bind(id)
     .all<{
@@ -405,6 +416,9 @@ surveyRoutes.patch('/:id', async (c) => {
       sort_order: number
       required: number
       config_json: string
+      deleted_at: number | null
+      created_at: number
+      response_count: number
     }>()
 
   return c.json({
@@ -454,7 +468,7 @@ surveyRoutes.post('/:id/publish', async (c) => {
   }
 
   const existingQs = await c.env.DB.prepare(
-    'SELECT type, config_json FROM questions WHERE survey_id = ?',
+    'SELECT type, config_json FROM questions WHERE survey_id = ? AND deleted_at IS NULL',
   )
     .bind(id)
     .all<{ type: string; config_json: string }>()
