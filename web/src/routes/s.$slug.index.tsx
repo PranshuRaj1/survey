@@ -72,6 +72,25 @@ function PublicSurvey() {
   // Using a ref so it never triggers re-renders and cannot drift.
   const startTimeRef = useRef<number>(Date.now())
 
+  // Log the visit exactly once on survey mount
+  useEffect(() => {
+    let cancelled = false
+
+    const logVisit = async () => {
+      if (cancelled) return
+      try {
+        await apiRequest(`/api/public/survey/${survey.slug}/visit`, { method: 'POST' })
+      } catch {
+        // visit tracking is best-effort, never block the survey from rendering
+      }
+    }
+
+    logVisit()
+    return () => {
+      cancelled = true
+    }
+  }, [survey.slug])
+
   const currentQ = survey.questions[currentIdx]
 
   const progressPercent = Math.round((currentIdx / survey.questions.length) * 100)

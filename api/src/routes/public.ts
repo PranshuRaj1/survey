@@ -11,16 +11,6 @@ publicRoutes.get('/survey/:slug', async (c) => {
   const cached = (await c.env.KV.get(cacheKey, 'json')) as { survey: { id: string } } | null
 
   if (cached) {
-    // Increment visit counter asynchronously — does not block the response
-    c.executionCtx.waitUntil(
-      (async () => {
-        const surveyId = cached.survey.id
-        const visitKey = `visits:${surveyId}`
-        const prev = await c.env.KV.get(visitKey)
-        const next = prev ? parseInt(prev, 10) + 1 : 1
-        await c.env.KV.put(visitKey, String(next))
-      })(),
-    )
     return c.json(cached)
   }
 
@@ -75,17 +65,41 @@ publicRoutes.get('/survey/:slug', async (c) => {
 
   await c.env.KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 60 })
 
-  // Increment visit counter asynchronously — does not block the response
-  c.executionCtx.waitUntil(
-    (async () => {
-      const visitKey = `visits:${survey.id}`
-      const prev = await c.env.KV.get(visitKey)
-      const next = prev ? parseInt(prev, 10) + 1 : 1
-      await c.env.KV.put(visitKey, String(next))
-    })(),
-  )
-
   return c.json(result)
+})
+
+publicRoutes.post('/survey/:slug/visit', async (c) => {
+  const slug = c.req.param('slug')
+  const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
+
+  // Retrieve survey ID only - minimal query to avoid loading questions or configs
+  const survey = await c.env.DB.prepare(
+    "SELECT id FROM surveys WHERE slug = ? AND status = 'published'",
+  )
+    .bind(slug)
+    .first<{ id: string }>()
+
+  if (!survey) {
+    return c.json({ error: 'Survey not found or not published' }, 404)
+  }
+
+  // IP-based lock to prevent rapid, repetitive visit increments from the same user/session.
+  // Note: This is an approximation as multiple users under a CGNAT/shared network might share the same IP.
+  const lockKey = `visit_lock:${survey.id}:${ip}`
+  const alreadyVisited = await c.env.KV.get(lockKey)
+
+  if (!alreadyVisited) {
+    // Lock this IP for 30 minutes (1800 seconds)
+    await c.env.KV.put(lockKey, '1', { expirationTtl: 1800 })
+
+    // Increment visits counter in KV (non-atomic read-then-write; fine for a non-financial metric)
+    const countKey = `visits:${survey.id}`
+    const current = await c.env.KV.get(countKey)
+    const next = current ? parseInt(current, 10) + 1 : 1
+    await c.env.KV.put(countKey, String(next))
+  }
+
+  return c.json({ ok: true })
 })
 
 publicRoutes.post('/survey/:slug/respond', async (c) => {
