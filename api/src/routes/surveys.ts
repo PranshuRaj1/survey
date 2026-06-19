@@ -136,10 +136,10 @@ surveyRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id')
 
   const existing = await c.env.DB.prepare(
-    'SELECT id, slug FROM surveys WHERE id = ? AND owner_id = ?',
+    'SELECT id, slug, status FROM surveys WHERE id = ? AND owner_id = ?',
   )
     .bind(id, userId)
-    .first<{ id: string; slug: string }>()
+    .first<{ id: string; slug: string; status: string }>()
 
   if (!existing) {
     return c.json({ error: 'Survey not found' }, 404)
@@ -222,6 +222,45 @@ surveyRoutes.patch('/:id', async (c) => {
       }
       if (q.config !== undefined && (typeof q.config !== 'object' || q.config === null)) {
         return c.json({ error: 'Question config must be a valid object' }, 400)
+      }
+    }
+  }
+
+  const isPublished =
+    body.status === 'published' || (body.status === undefined && existing.status === 'published')
+  if (isPublished) {
+    if (body.questions !== undefined) {
+      if (body.questions.length === 0) {
+        return c.json({ error: 'Cannot publish a survey with no questions' }, 400)
+      }
+      for (const q of body.questions) {
+        if (q.type === 'multiple_choice') {
+          const opts = q.config?.options
+          if (!Array.isArray(opts) || opts.length === 0) {
+            return c.json({ error: 'Multiple choice questions need at least one option' }, 400)
+          }
+        }
+      }
+    } else {
+      const existingQs = await c.env.DB.prepare(
+        'SELECT type, config_json FROM questions WHERE survey_id = ?',
+      )
+        .bind(id)
+        .all<{ type: string; config_json: string }>()
+
+      if (existingQs.results.length === 0) {
+        return c.json({ error: 'Cannot publish a survey with no questions' }, 400)
+      }
+      for (const q of existingQs.results) {
+        if (q.type === 'multiple_choice') {
+          let config: any = {}
+          try {
+            config = JSON.parse(q.config_json)
+          } catch {}
+          if (!Array.isArray(config.options) || config.options.length === 0) {
+            return c.json({ error: 'Multiple choice questions need at least one option' }, 400)
+          }
+        }
       }
     }
   }
@@ -412,6 +451,28 @@ surveyRoutes.post('/:id/publish', async (c) => {
 
   if (!existing) {
     return c.json({ error: 'Survey not found' }, 404)
+  }
+
+  const existingQs = await c.env.DB.prepare(
+    'SELECT type, config_json FROM questions WHERE survey_id = ?',
+  )
+    .bind(id)
+    .all<{ type: string; config_json: string }>()
+
+  if (existingQs.results.length === 0) {
+    return c.json({ error: 'Cannot publish a survey with no questions' }, 400)
+  }
+
+  for (const q of existingQs.results) {
+    if (q.type === 'multiple_choice') {
+      let config: any = {}
+      try {
+        config = JSON.parse(q.config_json)
+      } catch {}
+      if (!Array.isArray(config.options) || config.options.length === 0) {
+        return c.json({ error: 'Multiple choice questions need at least one option' }, 400)
+      }
+    }
   }
 
   await c.env.DB.prepare(`UPDATE surveys SET status = 'published', updated_at = ? WHERE id = ?`)

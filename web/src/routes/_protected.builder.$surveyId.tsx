@@ -29,6 +29,88 @@ interface SurveyDetail {
   questions: Question[]
 }
 
+interface Toast {
+  id: string
+  message: string
+  type: 'success' | 'error' | 'publish'
+  link?: string
+  duration?: number
+}
+
+function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    const duration = toast.duration ?? (toast.type === 'publish' ? 10000 : 4000)
+    const timer = setTimeout(() => {
+      onClose()
+    }, duration)
+    return () => clearTimeout(timer)
+  }, [toast.duration, toast.type, onClose])
+
+  const handleCopy = async () => {
+    if (toast.link) {
+      try {
+        await navigator.clipboard.writeText(toast.link)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch (err) {
+        console.error('Failed to copy text: ', err)
+      }
+    }
+  }
+
+  let bgColorClass = 'bg-surface text-on-surface'
+  if (toast.type === 'error') {
+    bgColorClass = 'bg-error-container text-on-error-container'
+  } else if (toast.type === 'publish') {
+    bgColorClass = 'bg-secondary-fixed text-on-secondary-fixed'
+  } else if (toast.type === 'success') {
+    bgColorClass = 'bg-primary-fixed text-on-primary-fixed'
+  }
+
+  return (
+    <div
+      className={`pointer-events-auto brutal-border p-4 brutal-shadow flex flex-col gap-3 transition-all duration-200 animate-shake ${bgColorClass}`}
+      style={{ minWidth: '300px' }}
+    >
+      <div className="flex justify-between items-start gap-4">
+        <div className="flex-grow font-label-lg text-xs uppercase font-bold tracking-tight leading-normal">
+          {toast.message}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-6 h-6 border-2 border-on-background bg-background text-on-background hover:bg-surface-container flex items-center justify-center font-bold text-xs cursor-pointer active:translate-y-0.5 transition-transform"
+        >
+          ✕
+        </button>
+      </div>
+
+      {toast.link && (
+        <div className="flex flex-col gap-2 mt-1">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={toast.link}
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+              className="flex-grow bg-background text-on-background border-2 border-on-background p-1.5 text-xs font-label-sm focus:outline-none select-all"
+            />
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="bg-primary text-on-primary border-2 border-on-background px-3 py-1.5 font-label-sm text-xs uppercase hover:bg-primary-container active:translate-y-0.5 shrink-0 cursor-pointer transition-colors"
+            >
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export const Route = createFileRoute('/_protected/builder/$surveyId')({
   loader: async ({ params }) => {
     const res = await apiRequest<{ survey: SurveyDetail }>(`/api/surveys/${params.surveyId}`)
@@ -53,6 +135,20 @@ function Builder() {
     setSurvey(initialSurvey)
   }, [initialSurvey])
 
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const addToast = (
+    message: string,
+    type: 'success' | 'error' | 'publish',
+    link?: string,
+    duration?: number,
+  ) => {
+    const id = Math.random().toString(36).substring(2, 9)
+    setToasts((prev) => [...prev, { id, message, type, link, duration }])
+  }
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }
+
   if (!user) {
     return (
       <div className="flex h-screen items-center justify-center bg-background font-label-lg text-label-lg uppercase">
@@ -62,6 +158,20 @@ function Builder() {
   }
 
   const saveChanges = async (updatedSurvey: SurveyDetail) => {
+    if (updatedSurvey.status === 'published') {
+      if (updatedSurvey.questions.length === 0) {
+        addToast('Cannot publish/save a survey with no questions', 'error')
+        return
+      }
+      const hasEmptyMC = updatedSurvey.questions.some(
+        (q) =>
+          q.type === 'multiple_choice' && (!q.config?.options || q.config.options.length === 0),
+      )
+      if (hasEmptyMC) {
+        addToast('Multiple choice questions need at least one option', 'error')
+        return
+      }
+    }
     setSaving(true)
     try {
       const res = await apiRequest<{ survey: SurveyDetail }>(`/api/surveys/${surveyId}`, {
@@ -76,8 +186,13 @@ function Builder() {
         }),
       })
       setSurvey(res.survey)
+      addToast(
+        'Configuration saved successfully!',
+        'success',
+        `${window.location.origin}/s/${res.survey.slug}`,
+      )
     } catch (err: any) {
-      alert(err?.message || 'Failed to save changes')
+      addToast(err?.message || 'Failed to save changes', 'error')
     } finally {
       setSaving(false)
     }
@@ -153,12 +268,28 @@ function Builder() {
   }
 
   const handlePublish = async () => {
+    if (survey.questions.length === 0) {
+      addToast('Cannot publish a survey with no questions', 'error')
+      return
+    }
+    const hasEmptyMC = survey.questions.some(
+      (q) => q.type === 'multiple_choice' && (!q.config?.options || q.config.options.length === 0),
+    )
+    if (hasEmptyMC) {
+      addToast('Multiple choice questions need at least one option', 'error')
+      return
+    }
     try {
       await apiRequest(`/api/surveys/${surveyId}/publish`, { method: 'POST' })
       setSurvey({ ...survey, status: 'published' })
-      alert('Survey published successfully! Sharing link is now active.')
+      addToast(
+        'Survey published successfully!',
+        'publish',
+        `${window.location.origin}/s/${survey.slug}`,
+        10000,
+      )
     } catch (err: any) {
-      alert(err?.message || 'Failed to publish survey')
+      addToast(err?.message || 'Failed to publish survey', 'error')
     }
   }
 
@@ -307,7 +438,12 @@ function Builder() {
             {survey.status === 'draft' ? (
               <button
                 onClick={handlePublish}
-                className="w-full bg-secondary text-on-secondary border-2 border-on-background px-4 py-3 font-label-lg uppercase neo-brutalist-shadow neo-brutalist-shadow-hover transition-all flex justify-center items-center gap-2"
+                disabled={survey.questions.length === 0}
+                className={`w-full bg-secondary text-on-secondary border-2 border-on-background px-4 py-3 font-label-lg uppercase transition-all flex justify-center items-center gap-2 ${
+                  survey.questions.length === 0
+                    ? 'opacity-40 cursor-not-allowed pointer-events-none'
+                    : 'neo-brutalist-shadow neo-brutalist-shadow-hover'
+                }`}
               >
                 <span className="material-symbols-outlined">publish</span>
                 Publish Survey
@@ -835,6 +971,13 @@ function Builder() {
             </div>
           </div>
         </main>
+      </div>
+
+      {/* Toast notifications container */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-4 max-w-sm w-full pointer-events-none">
+        {toasts.map((toast) => (
+          <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
+        ))}
       </div>
     </div>
   )
