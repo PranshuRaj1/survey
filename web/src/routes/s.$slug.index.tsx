@@ -72,60 +72,13 @@ function PublicSurvey() {
   // Using a ref so it never triggers re-renders and cannot drift.
   const startTimeRef = useRef<number>(Date.now())
 
-  // Keyboard navigation
-  useEffect(() => {
-    if (!survey || survey.questions.length === 0) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const q = survey.questions[currentIdx]
-      if (!q) return
-      if (q.type === 'multiple_choice' && q.config.options) {
-        const options = q.config.options
-        const currentAnswer = answers[q.id]
-        const currentOptIdx = options.indexOf(currentAnswer)
-
-        if (e.key === 'ArrowDown') {
-          e.preventDefault()
-          const nextOptIdx = currentOptIdx < options.length - 1 ? currentOptIdx + 1 : 0
-          setAnswers((prev) => ({ ...prev, [q.id]: options[nextOptIdx] }))
-        } else if (e.key === 'ArrowUp') {
-          e.preventDefault()
-          const prevOptIdx = currentOptIdx > 0 ? currentOptIdx - 1 : options.length - 1
-          setAnswers((prev) => ({ ...prev, [q.id]: options[prevOptIdx] }))
-        }
-      }
-
-      if (e.key === 'Enter') {
-        // Only trigger Enter if we aren't focused on a textarea
-        const activeEl = document.activeElement
-        if (activeEl?.tagName === 'TEXTAREA') return
-
-        e.preventDefault()
-        if (currentIdx < survey.questions.length - 1) {
-          handleNext()
-        } else {
-          handleSubmit()
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [survey, currentIdx, answers])
-
   const currentQ = survey.questions[currentIdx]
-  if (!currentQ) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background font-label-lg text-label-lg uppercase">
-        Question Not Found
-      </div>
-    )
-  }
+
   const progressPercent = Math.round((currentIdx / survey.questions.length) * 100)
 
   const handleNext = () => {
     // Validate if current question is required
-    if (currentQ.required) {
+    if (currentQ?.required) {
       const val = answers[currentQ.id]
       if (val === undefined || val === null || val === '') {
         setValidationError(`Question "${currentQ.label}" is required.`)
@@ -181,6 +134,55 @@ function PublicSurvey() {
     }
   }
 
+  // Keyboard navigation
+  useEffect(() => {
+    if (!survey || survey.questions.length === 0) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const q = survey.questions[currentIdx]
+      if (!q) return
+      if (q.type === 'multiple_choice' && q.config.options) {
+        const options = q.config.options
+        const currentAnswer = answers[q.id]
+        const currentOptIdx = options.indexOf(currentAnswer)
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          const nextOptIdx = currentOptIdx < options.length - 1 ? currentOptIdx + 1 : 0
+          setAnswers((prev) => ({ ...prev, [q.id]: options[nextOptIdx] }))
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          const prevOptIdx = currentOptIdx > 0 ? currentOptIdx - 1 : options.length - 1
+          setAnswers((prev) => ({ ...prev, [q.id]: options[prevOptIdx] }))
+        }
+      }
+
+      if (e.key === 'Enter') {
+        // Only trigger Enter if we aren't focused on a textarea
+        const activeEl = document.activeElement
+        if (activeEl?.tagName === 'TEXTAREA') return
+
+        e.preventDefault()
+        if (currentIdx < survey.questions.length - 1) {
+          handleNext()
+        } else {
+          handleSubmit()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [survey, currentIdx, answers, handleSubmit, handleNext])
+
+  if (!currentQ) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background font-label-lg text-label-lg uppercase">
+        Question Not Found
+      </div>
+    )
+  }
+
   return (
     <div
       className="bg-background text-on-background min-h-screen flex flex-col font-body-md selection:bg-primary-container selection:text-on-primary-container relative"
@@ -219,7 +221,7 @@ function PublicSurvey() {
       {/* Main Content */}
       <main className="flex-grow flex flex-col items-center justify-center px-margin-mobile md:px-margin-desktop py-12 relative z-10">
         <div
-          key={currentIdx + '-' + (validationError ? 'error' : 'ok')}
+          key={`${currentIdx}-${validationError ? 'error' : 'ok'}`}
           className={`w-full max-w-2xl bg-surface-container-lowest flex flex-col transition-all duration-300 ${
             validationError
               ? 'border-[3px] border-error shadow-[4px_4px_0px_0px_var(--color-error)] animate-shake'

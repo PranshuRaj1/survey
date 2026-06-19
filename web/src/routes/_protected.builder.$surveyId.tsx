@@ -132,7 +132,7 @@ function Builder() {
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [previewQIndex, setPreviewQIndex] = useState(0)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle')
-  const navigate = useNavigate()
+  const _navigate = useNavigate()
 
   useEffect(() => {
     setSurvey(initialSurvey)
@@ -218,7 +218,7 @@ function Builder() {
 
   const handleAddQuestion = () => {
     const newQ: Question = {
-      id: 'temp_' + Math.random().toString(36).substring(2, 9),
+      id: `temp_${Math.random().toString(36).substring(2, 9)}`,
       type: 'short_text',
       label: 'New Question',
       sort_order: activeQuestions.length,

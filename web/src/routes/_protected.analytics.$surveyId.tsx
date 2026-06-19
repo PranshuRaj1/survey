@@ -100,7 +100,7 @@ function Analytics() {
     // Start at (0, 95)
     points.push('0,95')
 
-    sorted.forEach((res, index) => {
+    sorted.forEach((_res, index) => {
       const x = Math.round(((index + 1) / totalCount) * 100)
       const count = index + 1
       const y = Math.round(95 - (count / totalCount) * 90)

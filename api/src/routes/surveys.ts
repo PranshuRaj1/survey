@@ -238,11 +238,16 @@ surveyRoutes.patch('/:id', async (c) => {
     }
   }
 
-  const activeCount = body.questions !== undefined
-    ? body.questions.filter((q) => q.deleted_at === undefined || q.deleted_at === null).length
-    : (await c.env.DB.prepare(
-        'SELECT COUNT(*) as count FROM questions WHERE survey_id = ? AND deleted_at IS NULL'
-      ).bind(id).first<{ count: number }>())?.count ?? 0
+  const activeCount =
+    body.questions !== undefined
+      ? body.questions.filter((q) => q.deleted_at === undefined || q.deleted_at === null).length
+      : ((
+          await c.env.DB.prepare(
+            'SELECT COUNT(*) as count FROM questions WHERE survey_id = ? AND deleted_at IS NULL',
+          )
+            .bind(id)
+            .first<{ count: number }>()
+        )?.count ?? 0)
 
   const currentStatus = body.status ?? existing.status
   let finalStatus = currentStatus
