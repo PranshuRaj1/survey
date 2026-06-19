@@ -4,6 +4,7 @@ build/
 .wrangler/
 .dev.vars
 .env
+.env.*
 .env.local
 .env.*.local
 *.log

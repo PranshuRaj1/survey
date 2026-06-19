@@ -1,7 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "sde-intern-task-api",
-  "account_id": "25946c5b0c7365597e6229f17f194da6",
   "main": "src/index.ts",
   "compatibility_date": "2026-05-22",
   "compatibility_flags": ["nodejs_compat"],

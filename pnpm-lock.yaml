@@ -39,6 +39,9 @@ importers:
       '@tanstack/react-router':
         specifier: ^1.170.7
         version: 1.170.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      hono:
+        specifier: ^4.12.22
+        version: 4.12.22
       react:
         specifier: ^19.2.6
         version: 19.2.6
