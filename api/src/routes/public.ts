@@ -163,10 +163,17 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
   }
 
   const questions = await c.env.DB.prepare(
-    `SELECT id, type, label, required, config_json FROM questions WHERE survey_id = ? AND deleted_at IS NULL`,
+    `SELECT id, type, label, required, config_json, sort_order FROM questions WHERE survey_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC`,
   )
     .bind(survey.id)
-    .all<{ id: string; type: string; label: string; required: number; config_json: string }>()
+    .all<{
+      id: string
+      type: string
+      label: string
+      required: number
+      config_json: string
+      sort_order: number
+    }>()
 
   const questionMap = new Map(questions.results.map((q) => [q.id, q]))
   const submittedMap = new Map(body.answers.map((a) => [a.question_id, a.value]))
@@ -178,8 +185,75 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
     }
   }
 
-  // 2. Check for required questions
+  // Helper to evaluate a logic condition
+  const evaluateCondition = (answerVal: any, operator: string, targetVal: any): boolean => {
+    if (operator === 'filled')
+      return answerVal !== undefined && answerVal !== null && answerVal !== ''
+    if (operator === 'empty')
+      return answerVal === undefined || answerVal === null || answerVal === ''
+    if (answerVal === undefined || answerVal === null) return false
+
+    switch (operator) {
+      case 'equals':
+        return String(answerVal) === String(targetVal)
+      case 'not_equals':
+        return String(answerVal) !== String(targetVal)
+      case 'contains':
+        return String(answerVal).toLowerCase().includes(String(targetVal).toLowerCase())
+      case 'greater_than':
+        return Number(answerVal) > Number(targetVal)
+      case 'less_than':
+        return Number(answerVal) < Number(targetVal)
+      default:
+        return false
+    }
+  }
+
+  // Determine which questions are actually visible (Fix 1, 2)
+  const visibleQuestionIds = new Set<string>()
   for (const q of questions.results) {
+    let config: any = {}
+    try {
+      config = JSON.parse(q.config_json)
+    } catch {}
+
+    if (!config.logic) {
+      visibleQuestionIds.add(q.id)
+      continue
+    }
+
+    const { action, strategy, conditions } = config.logic
+    if (!conditions || !Array.isArray(conditions) || conditions.length === 0) {
+      visibleQuestionIds.add(q.id)
+      continue
+    }
+
+    let matches = strategy === 'all'
+    for (const cond of conditions) {
+      const triggerVal = visibleQuestionIds.has(cond.question_id)
+        ? submittedMap.get(cond.question_id)
+        : undefined
+      const condMet = evaluateCondition(triggerVal, cond.operator, cond.value)
+
+      if (strategy === 'all') {
+        matches = matches && condMet
+      } else {
+        matches = matches || condMet
+      }
+    }
+
+    const isVisible = action === 'show' ? matches : !matches
+    if (isVisible) {
+      visibleQuestionIds.add(q.id)
+    }
+  }
+
+  // Filter submitted answers to only keep visible ones (Fix 6)
+  const visibleAnswers = body.answers.filter((a) => visibleQuestionIds.has(a.question_id))
+
+  // 2. Check for required questions (only on visible ones!)
+  for (const q of questions.results) {
+    if (!visibleQuestionIds.has(q.id)) continue
     const isRequired = q.required === 1
     if (isRequired) {
       const val = submittedMap.get(q.id)
@@ -194,8 +268,8 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
     }
   }
 
-  // 3. Validate specific question types
-  for (const answer of body.answers) {
+  // 3. Validate specific question types for visible answers
+  for (const answer of visibleAnswers) {
     const q = questionMap.get(answer.question_id)
     if (!q) continue
     const val = answer.value
@@ -235,7 +309,7 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
     }
   }
 
-  // Insert the parent response + all answers atomically in a single D1 batch
+  // Insert the parent response + visible answers atomically in a single D1 batch
   // so a failure in any answer write rolls back the entire submission.
   const responseId = generateId()
 
@@ -243,7 +317,7 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
     c.env.DB.prepare(
       `INSERT INTO responses (id, survey_id, respondent_ip, completion_duration) VALUES (?, ?, ?, ?)`,
     ).bind(responseId, survey.id, ip, duration),
-    ...body.answers.map((a) =>
+    ...visibleAnswers.map((a) =>
       c.env.DB.prepare(
         `INSERT INTO response_answers (id, response_id, question_id, value_json)
          VALUES (?, ?, ?, ?)`,

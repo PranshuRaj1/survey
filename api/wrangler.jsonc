@@ -21,7 +21,11 @@
       "binding": "KV",
       "id": "0cd9349dfe8d40198f6254f16763e02c"
     }
-  ]
+  ],
+
+  "vars": {
+    "FRONTEND_URL": "https://survey-builder-ekz.pages.dev"
+  }
 
   // Add bindings here as you need them, then run `pnpm cf-typegen` to refresh `Env` types.
   //

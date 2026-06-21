@@ -182,13 +182,19 @@ responseRoutes.get('/:surveyId/export', async (c) => {
 
   // 1. Fetch all questions currently or historically in the survey
   const questions = await c.env.DB.prepare(
-    `SELECT id, label, type, deleted_at
+    `SELECT id, label, type, deleted_at, config_json
      FROM questions
      WHERE survey_id = ?
      ORDER BY sort_order ASC`,
   )
     .bind(surveyId)
-    .all<{ id: string; label: string; type: string; deleted_at: number | null }>()
+    .all<{
+      id: string
+      label: string
+      type: string
+      deleted_at: number | null
+      config_json: string
+    }>()
 
   const allQuestionIds = new Set(questions.results.map((q) => q.id))
 
@@ -268,7 +274,20 @@ responseRoutes.get('/:surveyId/export', async (c) => {
   const headers = [
     'Response ID',
     'Submitted At',
-    ...questions.results.map((q) => (q.deleted_at !== null ? `${q.label} (Deleted)` : q.label)),
+    ...questions.results.map((q) => {
+      let label = q.label
+      let config: any = {}
+      try {
+        config = JSON.parse(q.config_json || '{}')
+      } catch {}
+      if (config.logic) {
+        label = `${label} (Conditional)`
+      }
+      if (q.deleted_at !== null) {
+        label = `${label} (Deleted)`
+      }
+      return label
+    }),
   ]
   const csvRows = [headers.map((h) => formatCsvCell(h)).join(',')]
 

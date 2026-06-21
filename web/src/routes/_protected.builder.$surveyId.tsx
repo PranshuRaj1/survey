@@ -13,6 +13,11 @@ interface Question {
     options?: string[]
     min?: number
     max?: number
+    logic?: {
+      action: 'show' | 'hide'
+      strategy?: 'all' | 'any'
+      conditions?: { question_id: string; operator: string; value: string }[]
+    }
   }
   deleted_at?: number | null
   response_count?: number
@@ -243,6 +248,22 @@ function Builder() {
   const handleDeleteQuestion = (id: string) => {
     const q = survey.questions.find((item) => item.id === id)
     if (!q) return
+
+    // Check for logical dependents and warn the user (Fix 5)
+    const dependents = survey.questions.filter((item) => {
+      if (item.deleted_at) return false
+      const logic = item.config?.logic
+      if (!logic?.conditions) return false
+      return logic.conditions.some((c: any) => c.question_id === id)
+    })
+
+    if (dependents.length > 0) {
+      const depLabels = dependents.map((item) => `"${item.label}"`).join(', ')
+      const confirmDep = window.confirm(
+        `Warning: ${dependents.length} question(s) (${depLabels}) depend on this question's logic. Deleting it will make those questions unreachable.\n\nAre you sure you want to proceed?`,
+      )
+      if (!confirmDep) return
+    }
 
     if (q.response_count && q.response_count > 0) {
       const confirmDelete = window.confirm(
@@ -711,6 +732,223 @@ function Builder() {
                           >
                             Required Field
                           </label>
+                        </div>
+
+                        {/* Conditional Logic Panel (Fix 1, 2) */}
+                        <div className="pt-3 border-t border-dashed border-on-background/20 mt-3 space-y-2">
+                          <h4 className="font-label-sm text-xs text-on-surface-variant uppercase font-bold">
+                            Branching Logic
+                          </h4>
+                          {q.config?.logic ? (
+                            <div className="bg-surface-container-low p-3 border-2 border-on-background space-y-3">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center justify-between">
+                                <div className="flex items-center gap-1.5 text-xs font-label-sm">
+                                  <select
+                                    value={q.config.logic.action || 'show'}
+                                    onChange={(e) => {
+                                      const nextLogic = {
+                                        ...q.config.logic!,
+                                        action: e.target.value as any,
+                                      }
+                                      handleUpdateQuestion(q.id || '', {
+                                        config: { ...q.config, logic: nextLogic },
+                                      })
+                                    }}
+                                    className="bg-surface border border-on-background px-1 py-0.5 rounded-none font-bold"
+                                  >
+                                    <option value="show">SHOW</option>
+                                    <option value="hide">HIDE</option>
+                                  </select>
+                                  <span>THIS FIELD IF</span>
+                                  <select
+                                    value={q.config.logic.strategy || 'all'}
+                                    onChange={(e) => {
+                                      const nextLogic = {
+                                        ...q.config.logic!,
+                                        strategy: e.target.value as any,
+                                      }
+                                      handleUpdateQuestion(q.id || '', {
+                                        config: { ...q.config, logic: nextLogic },
+                                      })
+                                    }}
+                                    className="bg-surface border border-on-background px-1 py-0.5 rounded-none font-bold"
+                                  >
+                                    <option value="all">ALL</option>
+                                    <option value="any">ANY</option>
+                                  </select>
+                                  <span>CONDITIONS MET:</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextConfig = { ...q.config }
+                                    delete nextConfig.logic
+                                    handleUpdateQuestion(q.id || '', { config: nextConfig })
+                                  }}
+                                  className="text-error hover:underline text-[10px] uppercase font-bold tracking-wider cursor-pointer"
+                                >
+                                  Disable Logic
+                                </button>
+                              </div>
+
+                              {/* Conditions List */}
+                              <div className="space-y-2">
+                                {(q.config.logic.conditions || []).map((cond, condIdx) => {
+                                  // Prior questions: only show questions placed before current question (Fix 2)
+                                  const priorQuestions = activeQuestions.slice(0, qIndex)
+                                  return (
+                                    <div
+                                      key={condIdx}
+                                      className="flex flex-wrap items-center gap-2 p-2 bg-surface-bright border border-on-background/20 text-xs"
+                                    >
+                                      <select
+                                        value={cond.question_id || ''}
+                                        onChange={(e) => {
+                                          const nextConditions = [
+                                            ...(q.config.logic?.conditions || []),
+                                          ]
+                                          nextConditions[condIdx] = {
+                                            ...cond,
+                                            question_id: e.target.value,
+                                          }
+                                          const nextLogic = {
+                                            ...q.config.logic!,
+                                            conditions: nextConditions,
+                                          }
+                                          handleUpdateQuestion(q.id || '', {
+                                            config: { ...q.config, logic: nextLogic },
+                                          })
+                                        }}
+                                        className="bg-surface border border-on-background px-1 py-0.5 max-w-[140px] truncate"
+                                      >
+                                        <option value="" disabled>
+                                          Select Question...
+                                        </option>
+                                        {priorQuestions.map((pq, pqIdx) => (
+                                          <option key={pq.id || pqIdx} value={pq.id || ''}>
+                                            Q{pqIdx + 1}: {pq.label}
+                                          </option>
+                                        ))}
+                                      </select>
+
+                                      <select
+                                        value={cond.operator || 'equals'}
+                                        onChange={(e) => {
+                                          const nextConditions = [
+                                            ...(q.config.logic?.conditions || []),
+                                          ]
+                                          nextConditions[condIdx] = {
+                                            ...cond,
+                                            operator: e.target.value as any,
+                                          }
+                                          const nextLogic = {
+                                            ...q.config.logic!,
+                                            conditions: nextConditions,
+                                          }
+                                          handleUpdateQuestion(q.id || '', {
+                                            config: { ...q.config, logic: nextLogic },
+                                          })
+                                        }}
+                                        className="bg-surface border border-on-background px-1 py-0.5 font-label-sm uppercase text-[10px]"
+                                      >
+                                        <option value="equals">Equals</option>
+                                        <option value="not_equals">Not Equals</option>
+                                        <option value="contains">Contains</option>
+                                        <option value="greater_than">&gt;</option>
+                                        <option value="less_than">&lt;</option>
+                                        <option value="filled">Is Filled</option>
+                                        <option value="empty">Is Empty</option>
+                                      </select>
+
+                                      {!['filled', 'empty'].includes(cond.operator) && (
+                                        <input
+                                          type="text"
+                                          value={cond.value || ''}
+                                          onChange={(e) => {
+                                            const nextConditions = [
+                                              ...(q.config.logic?.conditions || []),
+                                            ]
+                                            nextConditions[condIdx] = {
+                                              ...cond,
+                                              value: e.target.value,
+                                            }
+                                            const nextLogic = {
+                                              ...q.config.logic!,
+                                              conditions: nextConditions,
+                                            }
+                                            handleUpdateQuestion(q.id || '', {
+                                              config: { ...q.config, logic: nextLogic },
+                                            })
+                                          }}
+                                          placeholder="Value"
+                                          className="bg-surface border border-on-background px-1 py-0.5 max-w-[80px]"
+                                        />
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const nextConditions = (
+                                            q.config.logic?.conditions || []
+                                          ).filter((_, cIdx) => cIdx !== condIdx)
+                                          const nextLogic = {
+                                            ...q.config.logic!,
+                                            conditions: nextConditions,
+                                          }
+                                          handleUpdateQuestion(q.id || '', {
+                                            config: { ...q.config, logic: nextLogic },
+                                          })
+                                        }}
+                                        className="text-error font-bold ml-auto hover:bg-error-container p-0.5 cursor-pointer"
+                                      >
+                                        <span className="material-symbols-outlined text-sm">
+                                          delete
+                                        </span>
+                                      </button>
+                                    </div>
+                                  )
+                                })}
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextConditions = [
+                                      ...(q.config.logic?.conditions || []),
+                                      { question_id: '', operator: 'equals', value: '' },
+                                    ]
+                                    const nextLogic = {
+                                      ...q.config.logic!,
+                                      conditions: nextConditions,
+                                    }
+                                    handleUpdateQuestion(q.id || '', {
+                                      config: { ...q.config, logic: nextLogic },
+                                    })
+                                  }}
+                                  className="w-full py-1 text-center bg-surface hover:bg-primary-fixed-dim/20 border border-on-background font-label-sm text-[10px] uppercase font-bold cursor-pointer"
+                                >
+                                  + Add Condition
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextConfig = {
+                                  ...q.config,
+                                  logic: {
+                                    action: 'show' as const,
+                                    strategy: 'all' as const,
+                                    conditions: [],
+                                  },
+                                }
+                                handleUpdateQuestion(q.id || '', { config: nextConfig })
+                              }}
+                              className="px-3 py-1.5 brutal-border bg-surface hover:bg-primary-fixed-dim text-xs font-label-sm uppercase font-bold cursor-pointer"
+                            >
+                              Enable Conditional Branching
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

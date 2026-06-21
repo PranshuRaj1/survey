@@ -12,6 +12,22 @@ interface Question {
     options?: string[]
     min?: number
     max?: number
+    logic?: {
+      action: 'show' | 'hide'
+      strategy: 'all' | 'any'
+      conditions: Array<{
+        question_id: string
+        operator:
+          | 'equals'
+          | 'not_equals'
+          | 'contains'
+          | 'greater_than'
+          | 'less_than'
+          | 'filled'
+          | 'empty'
+        value: any
+      }>
+    }
   }
 }
 
@@ -60,17 +76,84 @@ export const Route = createFileRoute('/s/$slug/')({
   component: PublicSurvey,
 })
 
+// Evaluation logic helper functions
+function evaluateCondition(answerVal: any, operator: string, targetVal: any): boolean {
+  if (operator === 'filled')
+    return answerVal !== undefined && answerVal !== null && answerVal !== ''
+  if (operator === 'empty') return answerVal === undefined || answerVal === null || answerVal === ''
+  if (answerVal === undefined || answerVal === null) return false
+
+  switch (operator) {
+    case 'equals':
+      return String(answerVal) === String(targetVal)
+    case 'not_equals':
+      return String(answerVal) !== String(targetVal)
+    case 'contains':
+      return String(answerVal).toLowerCase().includes(String(targetVal).toLowerCase())
+    case 'greater_than':
+      return Number(answerVal) > Number(targetVal)
+    case 'less_than':
+      return Number(answerVal) < Number(targetVal)
+    default:
+      return false
+  }
+}
+
+function getVisibleQuestions(questions: Question[], answers: Record<string, any>): Set<string> {
+  const visible = new Set<string>()
+
+  for (const q of questions) {
+    if (!q.config?.logic) {
+      visible.add(q.id)
+      continue
+    }
+
+    const { action, strategy, conditions } = q.config.logic
+    if (!conditions || !Array.isArray(conditions) || conditions.length === 0) {
+      visible.add(q.id)
+      continue
+    }
+
+    let matches = strategy === 'all'
+
+    for (const cond of conditions) {
+      const triggerVal = visible.has(cond.question_id) ? answers[cond.question_id] : undefined
+      const conditionMet = evaluateCondition(triggerVal, cond.operator, cond.value)
+
+      if (strategy === 'all') {
+        matches = matches && conditionMet
+      } else {
+        matches = matches || conditionMet
+      }
+    }
+
+    const isVisible = action === 'show' ? matches : !matches
+    if (isVisible) {
+      visible.add(q.id)
+    }
+  }
+
+  return visible
+}
+
 function PublicSurvey() {
   const { survey } = Route.useLoaderData()
-  const [currentIdx, setCurrentIdx] = useState(0)
   const [answers, setAnswers] = useState<Record<string, any>>({})
+  const [debouncedAnswers, setDebouncedAnswers] = useState<Record<string, any>>({})
+  const [currentQId, setCurrentQId] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
 
-  // Capture the exact moment the respondent begins the survey.
-  // Using a ref so it never triggers re-renders and cannot drift.
+  const debounceTimeoutsRef = useRef<Record<string, number>>({})
   const startTimeRef = useRef<number>(Date.now())
+
+  // Set initial question ID once questions are loaded
+  useEffect(() => {
+    if (survey?.questions?.length > 0 && !currentQId) {
+      setCurrentQId(survey.questions[0]?.id || null)
+    }
+  }, [survey, currentQId])
 
   // Log the visit exactly once on survey mount
   useEffect(() => {
@@ -91,38 +174,111 @@ function PublicSurvey() {
     }
   }, [survey.slug])
 
-  const currentQ = survey.questions[currentIdx]
+  // Helper to update answers with debouncing for text changes (Fix 7)
+  const updateAnswer = (qId: string, val: any, type: string) => {
+    setAnswers((prev) => ({ ...prev, [qId]: val }))
+    setValidationError(null)
 
-  const progressPercent = Math.round((currentIdx / survey.questions.length) * 100)
+    if (debounceTimeoutsRef.current[qId]) {
+      clearTimeout(debounceTimeoutsRef.current[qId])
+    }
+
+    if (type === 'short_text' || type === 'long_text') {
+      debounceTimeoutsRef.current[qId] = window.setTimeout(() => {
+        setDebouncedAnswers((prev) => ({ ...prev, [qId]: val }))
+      }, 250) as unknown as number
+    } else {
+      setDebouncedAnswers((prev) => ({ ...prev, [qId]: val }))
+    }
+  }
+
+  // Clear answer state for any question that becomes hidden (Fix 6)
+  useEffect(() => {
+    const visibleIds = getVisibleQuestions(survey.questions, debouncedAnswers)
+    let stateChanged = false
+    const nextAnswers = { ...answers }
+    const nextDebounced = { ...debouncedAnswers }
+
+    for (const q of survey.questions) {
+      if (!visibleIds.has(q.id)) {
+        if (nextAnswers[q.id] !== undefined) {
+          delete nextAnswers[q.id]
+          stateChanged = true
+        }
+        if (nextDebounced[q.id] !== undefined) {
+          delete nextDebounced[q.id]
+          stateChanged = true
+        }
+      }
+    }
+
+    if (stateChanged) {
+      setAnswers(nextAnswers)
+      setDebouncedAnswers(nextDebounced)
+    }
+  }, [debouncedAnswers, survey.questions])
+
+  // Get active list of questions based on debounced answers
+  const visibleQuestions = getVisibleQuestions(survey.questions, debouncedAnswers)
+  const visibleList = survey.questions.filter((q) => visibleQuestions.has(q.id))
+
+  // Find currently active question
+  const activeQ = visibleList.find((q) => q.id === currentQId) || visibleList[0]
+  const activeIdx = visibleList.findIndex((q) => q.id === activeQ?.id)
+
+  // Calculate dynamic progress percent (Fix 4)
+  const progressPercent =
+    visibleList.length > 0 && activeIdx >= 0
+      ? Math.round((activeIdx / visibleList.length) * 100)
+      : 0
 
   const handleNext = () => {
-    // Validate if current question is required
-    if (currentQ?.required) {
-      const val = answers[currentQ.id]
+    if (!activeQ) return
+    // Validate if current question is required (immediately evaluate)
+    if (activeQ.required) {
+      const val = answers[activeQ.id]
       if (val === undefined || val === null || val === '') {
-        setValidationError(`Question "${currentQ.label}" is required.`)
+        setValidationError(`Question "${activeQ.label}" is required.`)
         return
       }
     }
+
+    // Evaluate visible questions with latest answers for immediate navigation
+    const visibleQuestionsImmediate = getVisibleQuestions(survey.questions, answers)
+    const visibleListImmediate = survey.questions.filter((q) => visibleQuestionsImmediate.has(q.id))
+    const currentImmediateIdx = visibleListImmediate.findIndex((q) => q.id === activeQ.id)
+
     setValidationError(null)
-    setCurrentIdx(currentIdx + 1)
+    const nextQ = visibleListImmediate[currentImmediateIdx + 1]
+    if (nextQ) {
+      setCurrentQId(nextQ.id)
+    }
   }
 
   const handlePrev = () => {
+    if (!activeQ) return
+    const visibleQuestionsImmediate = getVisibleQuestions(survey.questions, answers)
+    const visibleListImmediate = survey.questions.filter((q) => visibleQuestionsImmediate.has(q.id))
+    const currentImmediateIdx = visibleListImmediate.findIndex((q) => q.id === activeQ.id)
+
     setValidationError(null)
-    setCurrentIdx(currentIdx - 1)
+    const prevQ = visibleListImmediate[currentImmediateIdx - 1]
+    if (prevQ) {
+      setCurrentQId(prevQ.id)
+    }
   }
 
   const handleSubmit = async () => {
-    // Validate all required questions
-    for (const q of survey.questions) {
+    const visibleQuestionsImmediate = getVisibleQuestions(survey.questions, answers)
+    const visibleListImmediate = survey.questions.filter((q) => visibleQuestionsImmediate.has(q.id))
+
+    // Validate all required questions that are currently visible
+    for (const q of visibleListImmediate) {
       if (q.required) {
         const val = answers[q.id]
         if (val === undefined || val === null || val === '') {
           setValidationError(`Required field missing: "${q.label}"`)
-          // Navigate back to the unanswered question
-          const qIdx = survey.questions.findIndex((item) => item.id === q.id)
-          setCurrentIdx(qIdx)
+          setCurrentQId(q.id)
           return
         }
       }
@@ -131,13 +287,11 @@ function PublicSurvey() {
     setValidationError(null)
     setSubmitting(true)
     try {
-      const formattedAnswers = Object.entries(answers).map(([qId, val]) => ({
-        question_id: qId,
-        value: val,
+      const formattedAnswers = visibleListImmediate.map((q) => ({
+        question_id: q.id,
+        value: answers[q.id] !== undefined ? answers[q.id] : null,
       }))
 
-      // Compute elapsed seconds from when the survey first loaded.
-      // Math.max(1, ...) avoids sending 0 for near-instant submissions.
       const duration = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000))
 
       await apiRequest(`/api/public/survey/${survey.slug}/respond`, {
@@ -155,11 +309,10 @@ function PublicSurvey() {
 
   // Keyboard navigation
   useEffect(() => {
-    if (!survey || survey.questions.length === 0) return
+    if (!survey || survey.questions.length === 0 || !activeQ) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const q = survey.questions[currentIdx]
-      if (!q) return
+      const q = activeQ
       if (q.type === 'multiple_choice' && q.config.options) {
         const options = q.config.options
         const currentAnswer = answers[q.id]
@@ -168,21 +321,21 @@ function PublicSurvey() {
         if (e.key === 'ArrowDown') {
           e.preventDefault()
           const nextOptIdx = currentOptIdx < options.length - 1 ? currentOptIdx + 1 : 0
-          setAnswers((prev) => ({ ...prev, [q.id]: options[nextOptIdx] }))
+          updateAnswer(q.id, options[nextOptIdx], q.type)
         } else if (e.key === 'ArrowUp') {
           e.preventDefault()
           const prevOptIdx = currentOptIdx > 0 ? currentOptIdx - 1 : options.length - 1
-          setAnswers((prev) => ({ ...prev, [q.id]: options[prevOptIdx] }))
+          updateAnswer(q.id, options[prevOptIdx], q.type)
         }
       }
 
       if (e.key === 'Enter') {
-        // Only trigger Enter if we aren't focused on a textarea
         const activeEl = document.activeElement
         if (activeEl?.tagName === 'TEXTAREA') return
 
         e.preventDefault()
-        if (currentIdx < survey.questions.length - 1) {
+        const isLast = activeIdx === visibleList.length - 1
+        if (!isLast) {
           handleNext()
         } else {
           handleSubmit()
@@ -192,9 +345,9 @@ function PublicSurvey() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [survey, currentIdx, answers, handleSubmit, handleNext])
+  }, [survey, activeQ, activeIdx, visibleList, answers])
 
-  if (!currentQ) {
+  if (!activeQ) {
     return (
       <div className="flex h-screen items-center justify-center bg-background font-label-lg text-label-lg uppercase">
         Question Not Found
@@ -240,7 +393,7 @@ function PublicSurvey() {
       {/* Main Content */}
       <main className="flex-grow flex flex-col items-center justify-center px-margin-mobile md:px-margin-desktop py-12 relative z-10">
         <div
-          key={`${currentIdx}-${validationError ? 'error' : 'ok'}`}
+          key={`${activeQ.id}-${validationError ? 'error' : 'ok'}`}
           className={`w-full max-w-2xl bg-surface-container-lowest flex flex-col transition-all duration-300 ${
             validationError
               ? 'border-[3px] border-error shadow-[4px_4px_0px_0px_var(--color-error)] animate-shake'
@@ -253,8 +406,8 @@ function PublicSurvey() {
               survey_module_v1.0
             </span>
             <span className="font-label-sm text-label-sm" style={{ color: survey.brand_color }}>
-              Q {String(currentIdx + 1).padStart(2, '0')}/
-              {String(survey.questions.length).padStart(2, '0')}
+              Q {String(activeIdx + 1).padStart(2, '0')}/
+              {String(visibleList.length).padStart(2, '0')}
             </span>
           </div>
 
@@ -284,64 +437,60 @@ function PublicSurvey() {
                   className="inline-block w-2 h-2 rounded-none"
                   style={{ backgroundColor: survey.brand_color }}
                 ></span>
-                <span className="uppercase">Question {currentIdx + 1}</span>
-                {currentQ.required && <span className="text-error font-bold">* Required</span>}
+                <span className="uppercase">Question {activeIdx + 1}</span>
+                {activeQ.required && <span className="text-error font-bold">* Required</span>}
               </div>
               <h1 className="font-headline-sm text-headline-sm text-on-background uppercase">
-                {currentQ.label}
+                {activeQ.label}
               </h1>
             </div>
 
             {/* Inputs based on type */}
             <div className="min-h-[140px] flex flex-col justify-center">
-              {currentQ.type === 'short_text' && (
+              {activeQ.type === 'short_text' && (
                 <input
                   className="w-full bg-surface border-[3px] border-on-background p-3 font-body-md text-sm focus:outline-none focus:bg-primary-fixed-dim/10 focus:border-primary placeholder:text-outline/40"
                   type="text"
                   placeholder="Type your response here..."
-                  value={answers[currentQ.id] || ''}
+                  value={answers[activeQ.id] || ''}
                   onChange={(e) => {
-                    setAnswers({ ...answers, [currentQ.id]: e.target.value })
-                    setValidationError(null)
+                    updateAnswer(activeQ.id, e.target.value, activeQ.type)
                   }}
                 />
               )}
 
-              {currentQ.type === 'long_text' && (
+              {activeQ.type === 'long_text' && (
                 <textarea
                   className="w-full bg-surface border-[3px] border-on-background p-3 font-body-md text-sm focus:outline-none focus:bg-primary-fixed-dim/10 focus:border-primary placeholder:text-outline/40 h-32"
                   placeholder="Type detailed response here..."
-                  value={answers[currentQ.id] || ''}
+                  value={answers[activeQ.id] || ''}
                   onChange={(e) => {
-                    setAnswers({ ...answers, [currentQ.id]: e.target.value })
-                    setValidationError(null)
+                    updateAnswer(activeQ.id, e.target.value, activeQ.type)
                   }}
                 />
               )}
 
-              {currentQ.type === 'date' && (
+              {activeQ.type === 'date' && (
                 <input
                   className="w-full bg-surface border-[3px] border-on-background p-3 font-label-lg text-label-lg focus:outline-none focus:bg-primary-fixed-dim/10"
                   type="date"
-                  value={answers[currentQ.id] || ''}
+                  value={answers[activeQ.id] || ''}
                   onChange={(e) => {
-                    setAnswers({ ...answers, [currentQ.id]: e.target.value })
-                    setValidationError(null)
+                    updateAnswer(activeQ.id, e.target.value, activeQ.type)
                   }}
                 />
               )}
 
-              {currentQ.type === 'rating' && (
+              {activeQ.type === 'rating' && (
                 <div className="flex justify-between items-center gap-2 py-3 bg-surface-container border border-dashed border-on-background/30 px-3">
                   {[1, 2, 3, 4, 5].map((val) => {
-                    const isSelected = answers[currentQ.id] === val
+                    const isSelected = answers[activeQ.id] === val
                     return (
                       <button
                         key={val}
                         type="button"
                         onClick={() => {
-                          setAnswers({ ...answers, [currentQ.id]: val })
-                          setValidationError(null)
+                          updateAnswer(activeQ.id, val, activeQ.type)
                         }}
                         className={`w-12 h-12 brutal-border font-headline-sm flex items-center justify-center transition-all ${
                           isSelected
@@ -361,18 +510,17 @@ function PublicSurvey() {
                 </div>
               )}
 
-              {currentQ.type === 'multiple_choice' && (
+              {activeQ.type === 'multiple_choice' && (
                 <div className="flex flex-col gap-3">
-                  {(currentQ.config.options || []).map((opt, optIdx) => {
-                    const isSelected = answers[currentQ.id] === opt
+                  {(activeQ.config.options || []).map((opt, optIdx) => {
+                    const isSelected = answers[activeQ.id] === opt
                     const alphabet = String.fromCharCode(65 + optIdx)
                     return (
                       <label
                         key={optIdx}
                         className="relative cursor-pointer group"
                         onClick={() => {
-                          setAnswers({ ...answers, [currentQ.id]: opt })
-                          setValidationError(null)
+                          updateAnswer(activeQ.id, opt, activeQ.type)
                         }}
                       >
                         <div
@@ -418,7 +566,7 @@ function PublicSurvey() {
               </div>
               <div className="h-2 w-full bg-surface-container-high neo-border-sm rounded-none overflow-hidden flex">
                 <div
-                  className="h-full border-r-[2px] border-on-background transition-all"
+                  className="h-full border-r-[2px] border-on-background transition-all duration-300 ease-out"
                   style={{ width: `${progressPercent}%`, backgroundColor: survey.brand_color }}
                 ></div>
               </div>
@@ -426,7 +574,7 @@ function PublicSurvey() {
             {/* Navigation Buttons */}
             <div className="flex gap-4 w-full sm:w-auto">
               <button
-                disabled={currentIdx === 0}
+                disabled={activeIdx === 0}
                 onClick={handlePrev}
                 className="px-6 py-3 bg-surface text-on-surface border-2 border-on-background shadow-[2px_2px_0px_#1b1b1b] font-label-lg text-label-lg uppercase tracking-wide transition-all flex items-center gap-2 disabled:opacity-40"
                 type="button"
@@ -435,7 +583,7 @@ function PublicSurvey() {
                 PREV
               </button>
 
-              {currentIdx < survey.questions.length - 1 ? (
+              {activeIdx < visibleList.length - 1 ? (
                 <button
                   onClick={handleNext}
                   className="px-8 py-3 bg-primary text-on-primary border-2 border-on-background shadow-[4px_4px_0px_#1b1b1b] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[3px_3px_0px_#1b1b1b] font-label-lg text-label-lg uppercase tracking-wide transition-all flex items-center gap-2"

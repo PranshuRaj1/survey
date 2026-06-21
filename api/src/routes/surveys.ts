@@ -236,6 +236,101 @@ surveyRoutes.patch('/:id', async (c) => {
         return c.json({ error: 'Question created_at must be a number' }, 400)
       }
     }
+
+    // Validate logic dependencies and ordering constraints (Fix 2)
+    const activeQuestions = body.questions.filter(
+      (q) => q.deleted_at === undefined || q.deleted_at === null,
+    )
+    const activeQuestionsMap = new Map<string, (typeof activeQuestions)[0]>()
+    for (const q of activeQuestions) {
+      if (q.id) {
+        activeQuestionsMap.set(q.id, q)
+      }
+    }
+
+    for (const q of activeQuestions) {
+      const config = q.config as any
+      if (config && typeof config === 'object' && config.logic) {
+        const logic = config.logic
+        if (typeof logic !== 'object' || logic === null) {
+          return c.json({ error: `Question "${q.label}" has an invalid logic block` }, 400)
+        }
+        if (logic.action && !['show', 'hide'].includes(logic.action)) {
+          return c.json(
+            { error: `Question "${q.label}" has an invalid logic action: ${logic.action}` },
+            400,
+          )
+        }
+        if (logic.strategy && !['all', 'any'].includes(logic.strategy)) {
+          return c.json(
+            { error: `Question "${q.label}" has an invalid logic strategy: ${logic.strategy}` },
+            400,
+          )
+        }
+        if (logic.conditions !== undefined) {
+          if (!Array.isArray(logic.conditions)) {
+            return c.json(
+              { error: `Question "${q.label}" has invalid logic conditions (must be an array)` },
+              400,
+            )
+          }
+          for (const cond of logic.conditions) {
+            if (typeof cond !== 'object' || cond === null) {
+              return c.json(
+                { error: `Question "${q.label}" has an invalid logic condition object` },
+                400,
+              )
+            }
+            if (typeof cond.question_id !== 'string') {
+              return c.json(
+                {
+                  error: `Question "${q.label}" logic condition must reference a trigger question_id`,
+                },
+                400,
+              )
+            }
+            if (
+              cond.operator &&
+              ![
+                'equals',
+                'not_equals',
+                'contains',
+                'greater_than',
+                'less_than',
+                'filled',
+                'empty',
+              ].includes(cond.operator)
+            ) {
+              return c.json(
+                { error: `Question "${q.label}" has an invalid logic operator: ${cond.operator}` },
+                400,
+              )
+            }
+
+            const triggerQ = activeQuestionsMap.get(cond.question_id)
+            if (!triggerQ) {
+              return c.json(
+                {
+                  error: `Question "${q.label}" logic condition references a missing or deleted question: ${cond.question_id}`,
+                },
+                400,
+              )
+            }
+
+            const triggerSort = triggerQ.sort_order ?? 0
+            const currentSort = q.sort_order ?? 0
+            if (triggerSort >= currentSort) {
+              return c.json(
+                {
+                  error: `Logic ordering violation: question "${q.label}" depends on "${triggerQ.label}", which is not positioned before it.`,
+                },
+                400,
+              )
+            }
+          }
+        }
+      }
+    }
   }
 
   const activeCount =
