@@ -161,10 +161,7 @@ function Responses() {
       {/* TopNavBar */}
       <nav className="bg-background w-full brutal-border-bottom border-on-background flex justify-between items-center px-margin-desktop h-16 max-w-container-max mx-auto z-40 sticky top-0 bg-opacity-90 backdrop-blur-sm">
         <div className="flex items-center gap-8">
-          <Link
-            to="/dashboard"
-            className="flex items-center"
-          >
+          <Link to="/dashboard" className="flex items-center">
             <img src="/favicon.jpg" alt="DECODEGO" className="h-10 w-auto object-contain" />
           </Link>
           <div className="hidden md:flex gap-6">

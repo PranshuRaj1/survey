@@ -86,7 +86,7 @@ function Signup() {
         {/* Module Canvas */}
         <main className="relative bg-surface border-[3px] border-on-background flex flex-col shadow-none z-10">
           {/* Module Header */}
-          <header className="bg-on-background text-background px-4 py-3 flex justify-between items-center border-b-[3px] border-on-background">
+          <header className="bg-on-background text-background px-5 py-3 flex justify-between items-center border-b-[3px] border-on-background">
             <span className="font-label-sm text-label-sm uppercase tracking-widest flex items-center gap-2">
               <span className="w-2 h-2 bg-secondary-fixed inline-block"></span>
               AUTH_MODULE // REGISTER
@@ -94,11 +94,16 @@ function Signup() {
             <span className="font-label-sm text-label-sm opacity-60">SYS.ON</span>
           </header>
           {/* Module Body */}
-          <div className="p-gutter flex flex-col gap-8">
-            <div className="flex flex-col gap-1">
-              <img src="/favicon.jpg" alt="DECODEGO" className="h-16 w-auto object-contain" />
+          <div className="px-5 py-4 flex flex-col gap-3">
+            {/* Logo + tagline inline to save vertical space */}
+            <div className="flex items-center gap-3">
+              <img
+                src="/favicon.jpg"
+                alt="DECODEGO"
+                className="h-9 w-auto object-contain shrink-0"
+              />
               <p className="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 13 }}>
                   terminal
                 </span>
                 Register access keys to start.
@@ -106,15 +111,17 @@ function Signup() {
             </div>
 
             {error && (
-              <div className="bg-error-container text-on-error-container border-[3px] border-error p-3 font-label-sm text-label-sm uppercase flex items-center gap-2">
-                <span className="material-symbols-outlined">warning</span>
+              <div className="bg-error-container text-on-error-container border-[3px] border-error py-2 px-3 font-label-sm text-label-sm uppercase flex items-center gap-2">
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                  warning
+                </span>
                 <span>{error}</span>
               </div>
             )}
 
-            <div className="flex flex-col gap-6">
-              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
+              <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
                   <label
                     className={`font-label-sm text-label-sm uppercase flex items-center justify-between ${isEmailInvalid ? 'text-error' : ''}`}
                     htmlFor="email"
@@ -127,7 +134,7 @@ function Signup() {
                     )}
                   </label>
                   <input
-                    className={`w-full bg-surface-container-lowest border-[3px] p-3 font-label-lg text-label-lg focus:outline-none placeholder:text-on-background/30 placeholder:font-label-sm rounded-none transition-all ${
+                    className={`w-full bg-surface-container-lowest border-[3px] py-2 px-3 font-label-lg text-label-lg focus:outline-none placeholder:text-on-background/30 placeholder:font-label-sm rounded-none transition-all ${
                       isEmailInvalid
                         ? 'border-error bg-error-container/10 focus:bg-error-container/20 focus:border-error shadow-[4px_4px_0px_0px_var(--color-error)]'
                         : 'border-on-background focus:bg-primary-fixed focus:border-on-background'
@@ -147,7 +154,7 @@ function Signup() {
                   />
                 </div>
 
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1">
                   <label
                     className="font-label-sm text-label-sm uppercase flex items-center justify-between"
                     htmlFor="password"
@@ -155,7 +162,7 @@ function Signup() {
                     <span>Secret_Passcode</span>
                   </label>
                   <input
-                    className="w-full bg-surface-container-lowest border-[3px] border-on-background p-3 font-label-lg text-label-lg focus:outline-none focus:bg-primary-fixed focus:border-on-background placeholder:text-on-background/30 placeholder:font-label-sm rounded-none transition-colors"
+                    className="w-full bg-surface-container-lowest border-[3px] border-on-background py-2 px-3 font-label-lg text-label-lg focus:outline-none focus:bg-primary-fixed focus:border-on-background placeholder:text-on-background/30 placeholder:font-label-sm rounded-none transition-colors"
                     id="password"
                     placeholder="••••••••"
                     required
@@ -165,7 +172,7 @@ function Signup() {
                   />
                 </div>
 
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1">
                   <label
                     className="font-label-sm text-label-sm uppercase flex items-center justify-between"
                     htmlFor="confirmPassword"
@@ -173,7 +180,7 @@ function Signup() {
                     <span>Confirm_Passcode</span>
                   </label>
                   <input
-                    className="w-full bg-surface-container-lowest border-[3px] border-on-background p-3 font-label-lg text-label-lg focus:outline-none focus:bg-primary-fixed focus:border-on-background placeholder:text-on-background/30 placeholder:font-label-sm rounded-none transition-colors"
+                    className="w-full bg-surface-container-lowest border-[3px] border-on-background py-2 px-3 font-label-lg text-label-lg focus:outline-none focus:bg-primary-fixed focus:border-on-background placeholder:text-on-background/30 placeholder:font-label-sm rounded-none transition-colors"
                     id="confirmPassword"
                     placeholder="••••••••"
                     required
@@ -184,7 +191,7 @@ function Signup() {
                 </div>
 
                 <button
-                  className="relative group cursor-pointer mt-2 w-full"
+                  className="relative group cursor-pointer w-full"
                   type="submit"
                   disabled={submitting}
                 >
@@ -192,7 +199,7 @@ function Signup() {
                     aria-hidden="true"
                     className="absolute inset-0 bg-on-background translate-x-[4px] translate-y-[4px] border-[3px] border-on-background transition-transform duration-75 group-active:translate-x-0 group-active:translate-y-0"
                   ></div>
-                  <div className="relative w-full bg-primary text-on-primary border-[3px] border-on-background py-3 px-4 font-label-lg text-label-lg uppercase flex justify-between items-center transition-transform duration-75 group-active:translate-x-[4px] group-active:translate-y-[4px]">
+                  <div className="relative w-full bg-primary text-on-primary border-[3px] border-on-background py-2 px-4 font-label-lg text-label-lg uppercase flex justify-between items-center transition-transform duration-75 group-active:translate-x-[4px] group-active:translate-y-[4px]">
                     <span>{submitting ? 'Registering...' : 'Register'}</span>
                     <span
                       className="material-symbols-outlined"
@@ -204,7 +211,7 @@ function Signup() {
                 </button>
               </form>
 
-              <div className="flex items-center gap-4 py-2">
+              <div className="flex items-center gap-3">
                 <div className="h-px flex-1 border-t-2 border-dashed border-outline-variant"></div>
                 <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest bg-surface px-2">
                   ALREADY_REGISTERED
@@ -212,15 +219,13 @@ function Signup() {
                 <div className="h-px flex-1 border-t-2 border-dashed border-outline-variant"></div>
               </div>
 
-              <div className="flex flex-col gap-3">
-                <Link
-                  to="/login"
-                  className="w-full bg-surface-container-lowest border-[3px] border-on-background py-3 px-4 font-label-lg text-label-lg uppercase flex justify-center items-center gap-3 hover:bg-secondary-fixed hover:text-on-secondary-fixed transition-colors text-center"
-                >
-                  <span className="material-symbols-outlined">login</span>
-                  <span>Sign In Instead</span>
-                </Link>
-              </div>
+              <Link
+                to="/login"
+                className="w-full bg-surface-container-lowest border-[3px] border-on-background py-2 px-4 font-label-lg text-label-lg uppercase flex justify-center items-center gap-3 hover:bg-secondary-fixed hover:text-on-secondary-fixed transition-colors text-center"
+              >
+                <span className="material-symbols-outlined">login</span>
+                <span>Sign In Instead</span>
+              </Link>
             </div>
           </div>
           <div className="bg-surface-container border-t-[3px] border-on-background p-2 px-4 flex justify-between items-center">

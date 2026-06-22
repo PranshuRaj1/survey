@@ -399,10 +399,7 @@ function Builder() {
       <header className="w-full border-b-3 border-on-background bg-background text-primary font-label-lg text-label-lg z-20 shrink-0">
         <div className="flex justify-between items-center px-margin-desktop h-16 w-full max-w-container-max mx-auto">
           {/* Brand */}
-          <Link
-            to="/dashboard"
-            className="flex items-center"
-          >
+          <Link to="/dashboard" className="flex items-center">
             <img src="/favicon.jpg" alt="DECODEGO" className="h-10 w-auto object-contain" />
           </Link>
           {/* Navigation Links */}
