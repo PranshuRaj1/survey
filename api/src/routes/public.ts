@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { getCookie, setCookie } from 'hono/cookie'
 import { generateId } from '../lib/crypto'
 import type { AppContext } from '../types'
 
@@ -6,6 +7,19 @@ export const publicRoutes = new Hono<AppContext>()
 
 publicRoutes.get('/survey/:slug', async (c) => {
   const slug = c.req.param('slug')
+
+  // Set visitor cookie if missing, even for cached responses (so real browsers carry it on the subsequent POST /visit request)
+  let visitorId = getCookie(c, 'visitor_id')
+  if (!visitorId) {
+    visitorId = crypto.randomUUID()
+    setCookie(c, 'visitor_id', visitorId, {
+      maxAge: 60 * 60 * 24 * 365, // 1 year
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+      path: '/',
+    })
+  }
 
   const cacheKey = `survey:${slug}`
   const cached = (await c.env.KV.get(cacheKey, 'json')) as { survey: { id: string } } | null
@@ -83,21 +97,50 @@ publicRoutes.post('/survey/:slug/visit', async (c) => {
     return c.json({ error: 'Survey not found or not published' }, 404)
   }
 
-  // IP-based lock to prevent rapid, repetitive visit increments from the same user/session.
-  // Note: This is an approximation as multiple users under a CGNAT/shared network might share the same IP.
-  const lockKey = `visit_lock:${survey.id}:${ip}`
-  const alreadyVisited = await c.env.KV.get(lockKey)
+  // 1. Read or generate first-party httpOnly visitor ID cookie to handle CGNAT/unique visits.
+  let visitorId = getCookie(c, 'visitor_id')
+  const hasCookie = !!visitorId
 
-  if (!alreadyVisited) {
-    // Lock this IP for 30 minutes (1800 seconds)
-    await c.env.KV.put(lockKey, '1', { expirationTtl: 1800 })
-
-    // Increment visits counter in KV (non-atomic read-then-write; fine for a non-financial metric)
-    const countKey = `visits:${survey.id}`
-    const current = await c.env.KV.get(countKey)
-    const next = current ? parseInt(current, 10) + 1 : 1
-    await c.env.KV.put(countKey, String(next))
+  if (!visitorId) {
+    visitorId = crypto.randomUUID()
+    setCookie(c, 'visitor_id', visitorId, {
+      maxAge: 60 * 60 * 24 * 365, // 1 year
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+      path: '/',
+    })
   }
+
+  // 2. Check browser session-based unique visit lock (30 minutes)
+  const cookieLockKey = `visit_cookie_lock:${survey.id}:${visitorId}`
+  const cookieLocked = await c.env.KV.get(cookieLockKey)
+
+  if (cookieLocked) {
+    return c.json({ ok: true })
+  }
+
+  // 3. If the client did not send a cookie (e.g. a crawler/bot script), enforce a coarse 30-minute IP-based lock
+  // to block automated visit inflation from a single IP. Real browsers bypass this lock because they get a
+  // cookie on their very first request (during GET /survey/:slug).
+  const isLocal = ip === 'unknown' || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.16.')
+  if (!hasCookie && !isLocal) {
+    const ipLockKey = `visit_ip_lock:${survey.id}:${ip}`
+    const ipLocked = await c.env.KV.get(ipLockKey)
+    if (ipLocked) {
+      return c.json({ ok: true })
+    }
+    // Lock the IP for 30 minutes (1800 seconds) to block script crawlers
+    await c.env.KV.put(ipLockKey, '1', { expirationTtl: 1800 })
+  }
+
+  // 4. Mark cookie locked (30 minutes) and increment visit count
+  await c.env.KV.put(cookieLockKey, '1', { expirationTtl: 1800 })
+
+  const countKey = `visits:${survey.id}`
+  const current = await c.env.KV.get(countKey)
+  const next = current ? parseInt(current, 10) + 1 : 1
+  await c.env.KV.put(countKey, String(next))
 
   return c.json({ ok: true })
 })

@@ -158,11 +158,16 @@ function PublicSurvey() {
   // Log the visit exactly once on survey mount
   useEffect(() => {
     let cancelled = false
+    const sessionKey = `visited:${survey.id}`
 
     const logVisit = async () => {
       if (cancelled) return
+      // Prevent double logging if the user reloads or navigates back/forth in the same session
+      if (sessionStorage.getItem(sessionKey)) return
+
       try {
         await apiRequest(`/api/public/survey/${survey.slug}/visit`, { method: 'POST' })
+        sessionStorage.setItem(sessionKey, '1')
       } catch {
         // visit tracking is best-effort, never block the survey from rendering
       }
@@ -172,7 +177,7 @@ function PublicSurvey() {
     return () => {
       cancelled = true
     }
-  }, [survey.slug])
+  }, [survey.slug, survey.id])
 
   // Helper to update answers with debouncing for text changes (Fix 7)
   const updateAnswer = (qId: string, val: any, type: string) => {
