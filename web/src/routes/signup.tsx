@@ -96,9 +96,7 @@ function Signup() {
           {/* Module Body */}
           <div className="p-gutter flex flex-col gap-8">
             <div className="flex flex-col gap-1">
-              <h1 className="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg uppercase tracking-tight text-on-background">
-                DECODEGO
-              </h1>
+              <img src="/favicon.jpg" alt="DECODEGO" className="h-16 w-auto object-contain" />
               <p className="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
                 <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
                   terminal

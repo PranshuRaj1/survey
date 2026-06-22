@@ -117,10 +117,9 @@ function Analytics() {
         <div className="flex items-center gap-8">
           <Link
             to="/dashboard"
-            className="font-headline-md text-headline-md uppercase tracking-tighter text-on-background flex items-center gap-2"
+            className="flex items-center"
           >
-            <span className="material-symbols-outlined font-bold">terminal</span>
-            DECODEGO
+            <img src="/favicon.jpg" alt="DECODEGO" className="h-10 w-auto object-contain" />
           </Link>
           <div className="hidden md:flex gap-6">
             <Link to="/dashboard" className="text-on-surface font-label-lg text-label-lg px-2 py-1">

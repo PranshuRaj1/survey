@@ -89,14 +89,8 @@ function Dashboard() {
     <div className="min-h-screen flex flex-col font-body-md bg-grid relative text-on-background">
       {/* TopNavBar */}
       <nav className="bg-background w-full brutal-border-bottom border-on-background flex justify-between items-center px-margin-desktop h-16 max-w-container-max mx-auto z-40 bg-opacity-90 backdrop-blur-sm sticky top-0">
-        <div className="font-headline-md text-headline-md tracking-tighter text-on-background flex items-center gap-2">
-          <span
-            className="material-symbols-outlined text-[32px] font-bold"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            terminal
-          </span>
-          DECODEGO
+        <div className="flex items-center">
+          <img src="/favicon.jpg" alt="DECODEGO" className="h-10 w-auto object-contain" />
         </div>
         <div className="hidden md:flex items-center gap-6 h-full">
           <Link

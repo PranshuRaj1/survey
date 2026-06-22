@@ -401,10 +401,9 @@ function Builder() {
           {/* Brand */}
           <Link
             to="/dashboard"
-            className="font-headline-md text-headline-md uppercase tracking-tighter text-on-background hover:text-primary transition-colors flex items-center gap-2"
+            className="flex items-center"
           >
-            <span className="material-symbols-outlined font-bold">terminal</span>
-            DECODEGO
+            <img src="/favicon.jpg" alt="DECODEGO" className="h-10 w-auto object-contain" />
           </Link>
           {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-8">
