@@ -123,7 +123,13 @@ publicRoutes.post('/survey/:slug/visit', async (c) => {
   // 3. If the client did not send a cookie (e.g. a crawler/bot script), enforce a coarse 30-minute IP-based lock
   // to block automated visit inflation from a single IP. Real browsers bypass this lock because they get a
   // cookie on their very first request (during GET /survey/:slug).
-  const isLocal = ip === 'unknown' || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.16.')
+  const isLocal =
+    ip === 'unknown' ||
+    ip === '127.0.0.1' ||
+    ip === '::1' ||
+    ip.startsWith('192.168.') ||
+    ip.startsWith('10.') ||
+    ip.startsWith('172.16.')
   if (!hasCookie && !isLocal) {
     const ipLockKey = `visit_ip_lock:${survey.id}:${ip}`
     const ipLocked = await c.env.KV.get(ipLockKey)
