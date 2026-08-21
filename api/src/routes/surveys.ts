@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { generateId, generateSlug } from '../lib/crypto'
+import { MAX_QUESTIONS_PER_SURVEY } from '../lib/limits'
 import { authMiddleware } from '../middleware/auth'
 import type { AppContext } from '../types'
 
@@ -203,6 +204,12 @@ surveyRoutes.patch('/:id', async (c) => {
   if (body.questions !== undefined) {
     if (!Array.isArray(body.questions)) {
       return c.json({ error: 'Questions must be an array' }, 400)
+    }
+    if (body.questions.length > MAX_QUESTIONS_PER_SURVEY) {
+      return c.json(
+        { error: `A survey can have at most ${MAX_QUESTIONS_PER_SURVEY} questions` },
+        400,
+      )
     }
     for (const q of body.questions) {
       if (!q || typeof q !== 'object') {
