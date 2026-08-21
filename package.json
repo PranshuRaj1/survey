@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "concurrently -n api,web -c blue,magenta \"pnpm --filter sde-intern-task-api dev\" \"pnpm --filter sde-intern-task-web dev\"",
     "build": "pnpm --filter sde-intern-task-web build",
+    "test": "pnpm --filter survey-tests test",
+    "test:coverage": "pnpm --filter survey-tests test:coverage",
     "typecheck": "pnpm -r typecheck",
     "check": "biome check .",
     "check:fix": "biome check --write .",

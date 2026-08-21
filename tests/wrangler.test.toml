@@ -1,0 +1,36 @@
+# ============================================================
+# wrangler.test.toml — TEST-ONLY wrangler configuration
+# ============================================================
+#
+# This file is used EXCLUSIVELY by the Vitest test runner.
+# It is NOT referenced by api/wrangler.jsonc and has ZERO
+# impact on production deployments.
+#
+# All bindings below use placeholder IDs. In test mode,
+# @cloudflare/vitest-pool-workers (miniflare) creates in-memory
+# SQLite for D1 and an in-memory store for KV — no real
+# Cloudflare resources are used or billed.
+# ============================================================
+
+name = "survey-test"
+main = "../api/src/index.ts"
+compatibility_date = "2026-05-22"
+compatibility_flags = ["nodejs_compat"]
+
+# ---- Environment variables --------------------------------
+[vars]
+JWT_SECRET      = "test-secret-32-chars-do-not-use!!"
+FRONTEND_URL    = "http://localhost:5173"
+
+# ---- D1 (in-memory SQLite via miniflare) ------------------
+[[d1_databases]]
+binding      = "DB"
+database_name = "survey-test"
+# Placeholder ID — miniflare ignores it in local/test mode.
+database_id  = "00000000-0000-0000-0000-000000000000"
+
+# ---- KV (in-memory via miniflare) -------------------------
+[[kv_namespaces]]
+binding = "KV"
+# Placeholder ID — miniflare creates an ephemeral store.
+id      = "00000000-0000-0000-0000-000000000000"
