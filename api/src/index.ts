@@ -1,9 +1,11 @@
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { csrf } from 'hono/csrf'
 import { HTTPException } from 'hono/http-exception'
 import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
+import { MAX_BODY_BYTES } from './lib/limits'
 import { authRoutes } from './routes/auth'
 import { publicRoutes } from './routes/public'
 import { responseRoutes } from './routes/responses'
@@ -14,6 +16,13 @@ const app = new Hono<AppContext>()
 
 app.use('*', logger())
 app.use('*', secureHeaders())
+app.use(
+  '*',
+  bodyLimit({
+    maxSize: MAX_BODY_BYTES,
+    onError: (c) => c.json({ error: 'Request body too large' }, 413),
+  }),
+)
 
 app.use('*', async (c, next) => {
   const origins = ['http://localhost:5173', c.env.FRONTEND_URL].filter(Boolean)

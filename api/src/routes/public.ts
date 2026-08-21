@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { generateId } from '../lib/crypto'
+import { MAX_ANSWER_LENGTH } from '../lib/limits'
 import type { AppContext } from '../types'
 
 export const publicRoutes = new Hono<AppContext>()
@@ -207,6 +208,9 @@ publicRoutes.post('/survey/:slug/respond', async (c) => {
     }
     if (seenQuestions.has(a.question_id)) {
       return c.json({ error: 'Duplicate answer for the same question is not allowed' }, 400)
+    }
+    if (typeof a.value === 'string' && a.value.length > MAX_ANSWER_LENGTH) {
+      return c.json({ error: `Answer values must be at most ${MAX_ANSWER_LENGTH} characters` }, 400)
     }
     seenQuestions.add(a.question_id)
   }

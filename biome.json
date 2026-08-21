@@ -43,7 +43,7 @@
   },
   "overrides": [
     {
-      "includes": ["web/src/routeTree.gen.ts"],
+      "includes": ["web/src/routeTree.gen.ts", "tests/coverage/**"],
       "linter": {
         "enabled": false
       },
